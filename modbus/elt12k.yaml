@@ -1,0 +1,396 @@
+# APS ELT-12K Modbus configuration for Home Assistant
+# Author: Bjorn
+# License: MIT
+# Info from document 'Modbus protocol for PCS.pdf' rev 1.0  
+
+modbus:
+- name: ELT12K
+  type: tcp
+  host: 192.168.1.x
+  port: 502
+  
+# Rend HA plus tolérant aux micro-coupures + force une reconnexion propre
+#   timeout: 10
+#   retries: 3
+#  close_comm_on_error: true
+  
+  sensors:
+#  - name: APS ELT Manufacturer
+#    unique_id: aps_elt_manufacturer
+#    slave: 1
+#    address: 40004
+#    input_type: holding
+#    count: 16
+#    data_type: string
+#  - name: APS ELT Model
+#    unique_id: aps_elt_model
+#    slave: 1
+#    address: 40020
+#    input_type: holding
+#    count: 16
+#    data_type: string
+#  - name: APS ELT Options
+#    unique_id: aps_elt_options
+#    slave: 1
+#    address: 40036
+#    input_type: holding
+#    count: 8
+#    data_type: string
+  - name: APS ELT Version
+    unique_id: aps_elt_version
+    slave: 1
+    scan_interval: 3600
+    address: 40044
+    input_type: holding
+    count: 8
+    data_type: string
+  - name: APS ELT Serial Number
+    unique_id: aps_elt_serial
+    slave: 1
+    scan_interval: 3600
+    address: 40052
+    input_type: holding
+    count: 16
+    data_type: string
+#  - name: APS ELT Modbus Device Address
+#    unique_id: aps_elt_device_address
+#    slave: 1
+#    address: 40068
+#    input_type: holding
+#    data_type: uint16
+  - name: ELT Battery Energy Capacity
+    unique_id: aps_elt_whrtg_kwh
+    slave: 1
+    address: 40073
+    input_type: holding
+    data_type: uint16
+#    scale: 0.01
+    precision: 2
+    unit_of_measurement: kWh
+  - name: ELT Max Charge Rate
+    unique_id: aps_elt_max_charge_w
+    slave: 1
+    address: 40074
+    input_type: holding
+    data_type: uint16
+    unit_of_measurement: W
+  - name: ELT Max Discharge Rate
+    unique_id: aps_elt_max_discharge_w
+    slave: 1
+    address: 40075
+    input_type: holding
+    data_type: uint16
+    unit_of_measurement: W
+  - name: ELT SoC Max
+    unique_id: aps_elt_soc_max
+    slave: 1
+    address: 40077
+    input_type: holding
+    data_type: uint16
+    scale: 0.1
+    precision: 1
+    unit_of_measurement: '%'
+  - name: ELT SoC Min
+    unique_id: aps_elt_soc_min
+    slave: 1
+    address: 40078
+    input_type: holding
+    data_type: uint16
+    scale: 0.1
+    precision: 1
+    unit_of_measurement: '%'
+  - name: ELT SoC Reserve Max
+    unique_id: aps_elt_soc_rsv_max
+    slave: 1
+    address: 40079
+    input_type: holding
+    data_type: uint16
+    scale: 0.1
+    precision: 1
+    unit_of_measurement: '%'
+  - name: ELT SoC Reserve Min
+    unique_id: aps_elt_soc_rsv_min
+    slave: 1
+    address: 40080
+    input_type: holding
+    data_type: uint16
+    scale: 0.1
+    precision: 1
+    unit_of_measurement: '%'
+  - name: ELT Battery SoC
+    unique_id: aps_elt_soc
+    slave: 1
+    address: 40081
+    input_type: holding
+    data_type: uint16
+    scale: 0.1
+    precision: 1
+    unit_of_measurement: '%'
+    device_class: battery
+    state_class: measurement
+  - name: ELT Battery SoH
+    unique_id: aps_elt_soh
+    slave: 1
+    address: 40083
+    input_type: holding
+    data_type: uint16
+    unit_of_measurement: '%'
+  - name: ELT Charge Status Raw
+    unique_id: aps_elt_charge_status_raw
+    slave: 1
+    address: 40086
+    input_type: holding
+    data_type: uint16
+  - name: ELT Controller Heartbeat
+    unique_id: aps_elt_heartbeat
+    slave: 1
+    scan_interval: 60
+    address: 40089
+    input_type: holding
+    data_type: uint16
+  - name: ELT Battery Event 1 Bitfield
+    unique_id: aps_elt_battery_event1
+    slave: 1
+    scan_interval: 60
+    address: 40096
+    input_type: holding
+    data_type: uint32
+  - name: ELT PCS Alarm Bitfield
+    unique_id: aps_elt_pcs_alarm
+    slave: 1
+    scan_interval: 60
+    address: 40100
+    input_type: holding
+    data_type: uint32
+  - name: ELT DC Bus Voltage
+    unique_id: aps_elt_dc_bus_v
+    slave: 1
+    address: 40104
+    input_type: holding
+    data_type: uint16
+    scale: 0.1
+    precision: 1
+    unit_of_measurement: V
+    device_class: voltage
+    state_class: measurement
+  - name: ELT DC Current
+    unique_id: aps_elt_dc_current
+    slave: 1
+    address: 40114
+    input_type: holding
+    data_type: int16
+    scale: 0.1
+    precision: 1
+    unit_of_measurement: A
+    device_class: current
+    state_class: measurement
+  - name: ELT Battery Power
+    unique_id: aps_elt_battery_power
+    slave: 1
+    scan_interval: 5
+    address: 40117
+    input_type: holding
+    data_type: int16
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+  - name: ELT Battery Voltage
+    unique_id: aps_elt_battery_v
+    slave: 1
+    address: 40134
+    input_type: holding
+    data_type: uint16
+    scale: 0.1
+    precision: 1
+    unit_of_measurement: V
+    device_class: voltage
+    state_class: measurement
+  - name: ELT Active Power A
+    unique_id: aps_elt_p_active_a
+    slave: 1
+    address: 40135
+    input_type: holding
+    data_type: int16
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+  - name: ELT Active Power B
+    unique_id: aps_elt_p_active_b
+    slave: 1
+    address: 40136
+    input_type: holding
+    data_type: int16
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+  - name: ELT Active Power C
+    unique_id: aps_elt_p_active_c
+    slave: 1
+    address: 40137
+    input_type: holding
+    data_type: int16
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+  - name: ELT Reactive Power A
+    unique_id: aps_elt_q_reactive_a
+    slave: 1
+    address: 40138
+    input_type: holding
+    data_type: int16
+    unit_of_measurement: var
+    state_class: measurement
+  - name: ELT Reactive Power B
+    unique_id: aps_elt_q_reactive_b
+    slave: 1
+    address: 40139
+    input_type: holding
+    data_type: int16
+    unit_of_measurement: var
+    state_class: measurement
+  - name: ELT Reactive Power C
+    unique_id: aps_elt_q_reactive_c
+    slave: 1
+    address: 40140
+    input_type: holding
+    data_type: int16
+    unit_of_measurement: var
+    state_class: measurement
+  - name: ELT Daily Charge Energy
+    unique_id: aps_elt_daily_charge_kwh
+    slave: 1
+    scan_interval: 300
+    address: 40146
+    input_type: holding
+    data_type: uint16
+    scale: 0.01
+    precision: 2
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+  - name: ELT Daily Discharge Energy
+    unique_id: aps_elt_daily_discharge_kwh
+    slave: 1
+    scan_interval: 300
+    address: 40147
+    input_type: holding
+    data_type: uint16
+    scale: 0.01
+    precision: 2
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+  - name: ELT Total Charge Energy
+    unique_id: aps_elt_total_charge_kwh
+    slave: 1
+    scan_interval: 1800
+    address: 40148
+    input_type: holding
+    data_type: uint32
+    scale: 0.01
+    precision: 2
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+  - name: ELT Total Discharge Energy
+    unique_id: aps_elt_total_discharge_kwh
+    slave: 1
+    scan_interval: 1800
+    address: 40150
+    input_type: holding
+    data_type: uint32
+    scale: 0.01
+    precision: 2
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+  - name: ELT Grid Power A
+    unique_id: aps_elt_grid_power_a
+    slave: 1
+    scan_interval: 10
+    address: 40153
+    input_type: holding
+    data_type: int16
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+  - name: ELT Grid Power B
+    unique_id: aps_elt_grid_power_b
+    slave: 1
+    scan_interval: 10
+    address: 40154
+    input_type: holding
+    data_type: int16
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+  - name: ELT Grid Power C
+    unique_id: aps_elt_grid_power_c
+    slave: 1
+    scan_interval: 10
+    address: 40155
+    input_type: holding
+    data_type: int16
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+  - name: ELT Battery Temperature
+    unique_id: aps_elt_batt_temp
+    slave: 1
+    address: 40156
+    input_type: holding
+    data_type: int16
+    scale: 0.1
+    precision: 1
+    unit_of_measurement: °C
+    device_class: temperature
+    state_class: measurement
+  - name: ELT PCS Temperature
+    unique_id: aps_elt_pcs_temp
+    slave: 1
+    address: 40157
+    input_type: holding
+    data_type: int16
+    scale: 0.1
+    precision: 1
+    unit_of_measurement: °C
+    device_class: temperature
+    state_class: measurement
+  - name: ELT Chip1 Version
+    unique_id: aps_elt_chip1_version
+    slave: 1
+    scan_interval: 3600
+    address: 40159
+    input_type: holding
+    count: 8
+    data_type: string
+  - name: ELT Chip2 Version
+    unique_id: aps_elt_chip2_version
+    slave: 1
+    scan_interval: 3600
+    address: 40167
+    input_type: holding
+    count: 8
+    data_type: string
+  - name: ELT Chip3 Version
+    unique_id: aps_elt_chip3_version
+    slave: 1
+    scan_interval: 3600
+    address: 40175
+    input_type: holding
+    count: 8
+    data_type: string
+#  - name: APS ELT Mode raw
+#    unique_id: aps_elt_mode_raw
+#    slave: 1
+#    address: 40180
+#    input_type: holding
+#    data_type: uint16
+  - name: ELT Set Power Raw
+    unique_id: aps_elt_set_power_raw
+    slave: 1
+    scan_interval: 5
+    address: 40183
+    input_type: holding
+    data_type: int16
+    unit_of_measurement: W
