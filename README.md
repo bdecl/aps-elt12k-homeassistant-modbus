@@ -29,6 +29,8 @@ fast-changing values responsive.
 - Modbus TCP enabled on the ELT-12K
 - Network access to the device (default port: `502`)
 
+!! When modbus enabled, the internal modes will not work any more. Charge, discharge has to be controlled with the battery set power modbus parameter.
+
 ---
 
 ## Installation
