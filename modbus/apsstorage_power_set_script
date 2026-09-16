@@ -1,0 +1,75 @@
+#############################################
+# D) Scripts : écriture Modbus (signé -> unsigned)
+#  Implementation exemple
+#############################################
+
+script:
+  elt_write_power_signed:
+    alias: "ELT - Write Power Signed (40183) with ramp"
+    mode: restart
+#    mode: queued
+#    max: 10
+
+    fields:
+      power:
+        description: "Puissance en W (signée). Charge < 0, Décharge > 0."
+        example: -1500
+      dt:
+        description: "delta temps en s entre deux appel du script"
+        example: 2
+        
+    sequence:
+      - variables:
+          target: "{{ power | int(0) }}"
+          last: "{{ states('input_number.elt_last_sent_power_w') | int(0) }}"
+          rate: "{{ states('input_number.elt_ramp_step_w') | float(500) }}"
+          dt: "{{ dt | float(2) }}"
+          step: "{{ rate * dt }}"
+#          step: "{{ states('input_number.elt_ramp_step_w') | int(0) }}"
+          soc_ok: "{{ is_state('binary_sensor.elt_soc_allows_discharge','on') }}"
+          soc_charge_ok: "{{ is_state('binary_sensor.elt_soc_allows_charge','on') }}"
+          
+          # applique rampe si step > 0, sinon direct
+          ramped: >
+            {% if step <= 0 %}
+              {{ target }}
+            {% else %}
+              {% if target > last + step %}
+                {{ last + step }}
+              {% elif target < last - step %}
+                {{ last - step }}
+              {% else %}
+                {{ target }}
+              {% endif %}
+            {% endif %}
+          # clamp final sécurité
+          final: >
+            {% set v = ramped | int(0) %}
+            {% if v > 0 and not soc_ok  %}
+               0
+            {% elif v < 0 and not soc_charge_ok %}
+               {{ [v, -1500] | max }}
+            {% else %}
+               {% if v > 12000 %} 12000
+               {% elif v < -12000 %} -12000
+               {% else %} {{ v }} {% endif %}
+            {% endif %}
+      # n'écrit que si changement
+      - condition: template
+#        value_template: "{{ (final | int) != (last | int) }}"
+        value_template: >
+          {{ (final | int) != (last | int)
+             or (as_timestamp(now()) - as_timestamp(states.input_number.elt_last_sent_power_w.last_changed)) >= (states('input_number.elt_write_heartbeat_s') | float(30)) }}
+      - service: modbus.write_register
+        data:
+          hub: ELT12K
+          slave: 1
+          address: 40183
+          value: >
+            {% set v = final | int %}
+            {{ v if v >= 0 else 65536 + v }}
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.elt_last_sent_power_w
+        data:
+          value: "{{ final }}"
