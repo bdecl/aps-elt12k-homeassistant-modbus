@@ -1,0 +1,49 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "APsystems storage (Modbus TCP)",
+        "description": "Use the wired Ethernet interface dedicated to Modbus TCP. The device serves a single Modbus client: remove any YAML `modbus:` hub pointing at it before continuing.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "unit_id": "Modbus unit ID"
+        }
+      },
+      "phases": {
+        "title": "Grid connection",
+        "description": "Detected: {model}. Choose the number of AC phases (L2/L3 entities are only created for three-phase units).",
+        "data": {
+          "phases": "Phases"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "No answer. Check the address (wired interface, port 502) and that no other Modbus client is connected: the device only answers one client.",
+      "no_serial": "The device answered but no serial number could be read."
+    },
+    "abort": {
+      "already_configured": "This device is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "scan_interval": "Polling interval (s)",
+          "phases": "Phases",
+          "setpoint_keepalive": "Rewrite the last power setpoint every (s), 0 = off"
+        }
+      }
+    }
+  },
+  "selector": {
+    "phases": {
+      "options": {
+        "1": "Single-phase",
+        "3": "Three-phase"
+      }
+    }
+  }
+}
