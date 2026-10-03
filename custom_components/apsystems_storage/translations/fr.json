@@ -1,0 +1,49 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Stockage APsystems (Modbus TCP)",
+        "description": "Utilisez l'interface Ethernet filaire dédiée au Modbus TCP. L'appareil ne sert qu'un seul client Modbus : supprimez tout hub YAML `modbus:` qui pointe vers lui avant de continuer.",
+        "data": {
+          "host": "Hôte",
+          "port": "Port",
+          "unit_id": "Identifiant d'unité Modbus"
+        }
+      },
+      "phases": {
+        "title": "Raccordement réseau",
+        "description": "Détecté : {model}. Choisissez le nombre de phases AC (les entités L2/L3 ne sont créées qu'en triphasé).",
+        "data": {
+          "phases": "Phases"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Aucune réponse. Vérifiez l'adresse (interface filaire, port 502) et qu'aucun autre client Modbus n'est connecté : l'appareil n'en sert qu'un seul.",
+      "no_serial": "L'appareil a répondu mais aucun numéro de série n'a pu être lu."
+    },
+    "abort": {
+      "already_configured": "Cet appareil est déjà configuré."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "scan_interval": "Intervalle d'interrogation (s)",
+          "phases": "Phases",
+          "setpoint_keepalive": "Réécrire la dernière consigne de puissance toutes les (s), 0 = désactivé"
+        }
+      }
+    }
+  },
+  "selector": {
+    "phases": {
+      "options": {
+        "1": "Monophasé",
+        "3": "Triphasé"
+      }
+    }
+  }
+}
