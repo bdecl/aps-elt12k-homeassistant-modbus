@@ -1,0 +1,13 @@
+{
+  "domain": "apsystems_storage",
+  "name": "APsystems Storage (ELT / ELS) Modbus",
+  "codeowners": ["@bdecl"],
+  "config_flow": true,
+  "documentation": "https://github.com/bdecl/aps-elt12k-homeassistant-modbus",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/bdecl/aps-elt12k-homeassistant-modbus/issues",
+  "loggers": ["custom_components.apsystems_storage", "pymodbus"],
+  "requirements": ["pymodbus>=3.6.0"],
+  "version": "0.1.0"
+}
