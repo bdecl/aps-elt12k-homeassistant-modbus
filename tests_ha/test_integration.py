@@ -90,3 +90,25 @@ async def test_cannot_connect(hass: HomeAssistant):
     r = await hass.config_entries.flow.async_configure(
         r["flow_id"], {"host": "127.0.0.1", "port": 1, "unit_id": 1})
     assert r["errors"] == {"base": "cannot_connect"}
+
+
+async def test_form_uses_input_boxes(hass: HomeAssistant):
+    """Port and unit ID are typed in a box, not picked on a slider."""
+    import voluptuous_serialize
+    from homeassistant.helpers import config_validation as cv
+    r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    fields = {f["name"]: f for f in voluptuous_serialize.convert(
+        r["data_schema"], custom_serializer=cv.custom_serializer)}
+    for name in ("port", "unit_id"):
+        assert fields[name]["selector"]["number"]["mode"] == "box"
+
+
+async def test_options_flow(hass: HomeAssistant, elt):
+    port, _ = elt
+    entry = await _setup(hass, port, "3")
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    r = await hass.config_entries.options.async_configure(
+        r["flow_id"], {"scan_interval": 10.0, "phases": "3", "setpoint_keepalive": 0.0})
+    assert r["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options["scan_interval"] == 10 and isinstance(entry.options["scan_interval"], int)
+    await hass.async_block_till_done()

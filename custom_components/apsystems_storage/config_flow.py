@@ -24,6 +24,16 @@ from .const import (
 from .hub import HubError, IllegalAddress, StorageHub
 from .registers import REG_BY_KEY, decode, detect_model
 
+def _box(minimum: int, maximum: int, unit: str | None = None) -> selector.NumberSelector:
+    """Plain numeric input box (an int range would render as a slider)."""
+    config = selector.NumberSelectorConfig(
+        min=minimum, max=maximum, step=1, mode=selector.NumberSelectorMode.BOX
+    )
+    if unit:
+        config["unit_of_measurement"] = unit
+    return selector.NumberSelector(config)
+
+
 PHASE_SELECTOR = selector.SelectSelector(
     selector.SelectSelectorConfig(
         options=["1", "3"], translation_key="phases", mode=selector.SelectSelectorMode.LIST
@@ -58,6 +68,8 @@ class StorageConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
+            user_input[CONF_PORT] = int(user_input[CONF_PORT])
+            user_input[CONF_UNIT] = int(user_input[CONF_UNIT])
             try:
                 ident = await _identify(
                     user_input[CONF_HOST], user_input[CONF_PORT], user_input[CONF_UNIT]
@@ -79,8 +91,8 @@ class StorageConfigFlow(ConfigFlow, domain=DOMAIN):
         schema = vol.Schema(
             {
                 vol.Required(CONF_HOST, default=(user_input or {}).get(CONF_HOST, "")): str,
-                vol.Required(CONF_PORT, default=DEFAULT_PORT): vol.All(int, vol.Range(1, 65535)),
-                vol.Required(CONF_UNIT, default=DEFAULT_UNIT): vol.All(int, vol.Range(0, 247)),
+                vol.Required(CONF_PORT, default=DEFAULT_PORT): _box(1, 65535),
+                vol.Required(CONF_UNIT, default=DEFAULT_UNIT): _box(0, 247),
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
@@ -106,19 +118,21 @@ class StorageOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             user_input[CONF_PHASES] = int(user_input[CONF_PHASES])
+            user_input[CONF_SCAN_INTERVAL] = int(user_input[CONF_SCAN_INTERVAL])
+            user_input[CONF_KEEPALIVE] = int(user_input[CONF_KEEPALIVE])
             return self.async_create_entry(data=user_input)
         opts, data = self.config_entry.options, self.config_entry.data
         schema = vol.Schema(
             {
                 vol.Required(
                     CONF_SCAN_INTERVAL, default=opts.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
-                ): vol.All(int, vol.Range(MIN_SCAN_INTERVAL, 300)),
+                ): _box(MIN_SCAN_INTERVAL, 300, "s"),
                 vol.Required(
                     CONF_PHASES, default=str(opts.get(CONF_PHASES, data[CONF_PHASES]))
                 ): PHASE_SELECTOR,
                 vol.Required(
                     CONF_KEEPALIVE, default=opts.get(CONF_KEEPALIVE, DEFAULT_KEEPALIVE)
-                ): vol.All(int, vol.Range(0, 3600)),
+                ): _box(0, 3600, "s"),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
