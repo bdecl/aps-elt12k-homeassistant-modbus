@@ -13,8 +13,11 @@
 # Safety
 #   - Discharge stops at a minimum SoC (and optionally a minimum battery
 #     voltage), with hysteresis so it does not toggle around the limit.
-#   - Charge power tapers off linearly above a chosen SoC and stops when the
-#     battery reports "full" or SoC reaches the maximum.
+#   - Charge stops when the battery reports "full" or SoC reaches the maximum.
+#     Reducing the charge current near the end of charge is the BMS's job:
+#     it sends its charge limit to the ELT (CAN), and the setpoint is capped
+#     by the limit the ELT reports (register 40074). This package does not
+#     add its own end-of-charge taper.
 #   - The setpoint never exceeds the charge/discharge limits reported by the
 #     device itself (registers 40074 / 40075) nor the caps you set here.
 #   - Missing measurements (grid meter or battery unavailable) -> setpoint 0.
@@ -117,8 +120,6 @@ automation:
       vbat_min: 0 # V, discharge also stops at or below this voltage (0 = off)
       vbat_hysteresis: 0.5 # V, discharge resumes at vbat_min + this
       soc_max: 100 # %, charge stops at this SoC
-      taper_start_soc: 90 # %, charge power starts decreasing above this SoC
-      taper_min_charge_w: 1000 # W, charge power allowed just below soc_max
       max_charge_w: 6000 # W, your cap (the device limit also applies)
       max_discharge_w: 6000 # W, your cap (the device limit also applies)
 
@@ -167,10 +168,6 @@ automation:
             {% if not battery_ok or soc >= soc_max
                   or is_state(charge_status_entity, 'full') %}
               0
-            {% elif soc > taper_start_soc and soc_max > taper_start_soc %}
-              {% set f = (soc_max - soc) / (soc_max - taper_start_soc) %}
-              {% set floor = [taper_min_charge_w, cap] | min %}
-              {{ (floor + (cap - floor) * f) | round(0) }}
             {% else %}
               {{ cap }}
             {% endif %}

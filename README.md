@@ -118,9 +118,14 @@ first time), *Self-consumption*, *Manual* (fixed setpoint from
 |---|---|---|
 | Minimum SoC | 15 % | Discharge stops at or below it, resumes at 15 + 3 % |
 | Minimum voltage | off | Same, on battery voltage (resumes at min + 0.5 V) |
-| Charge taper | above 90 % | Charge power decreases linearly down to 1000 W near 100 % |
 | Full battery | – | Charge stops when the device reports *full* or SoC reaches the maximum |
 | Power caps | 6000 W | Your caps and the limits reported by the device (40074 / 40075) |
+
+**End of charge is left to the BMS.** Reducing the charge current as the
+cells approach full is done by the battery's BMS, which sends its charge
+limit to the ELT over CAN. The package does not add its own SoC-based taper:
+near full, SoC is a poor guide on LiFePO4, and an extra limit would only slow
+the charge and push solar surplus to the grid.
 | Missing data | – | Grid meter or battery unavailable → setpoint 0 |
 
 **Install**

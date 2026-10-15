@@ -139,10 +139,10 @@ async def test_low_soc_still_allows_charging(ctrl):
     assert await run(grid=-1000, setpoint=0, batt=0, soc=100) == -500
 
 
-async def test_charge_taper_near_full(ctrl):
+async def test_no_soc_taper_near_full(ctrl):
     run, _ = ctrl
-    # 95 %: halfway between 90 and 100 -> 1000 + (6000 - 1000) * 0.5 = 3500
-    assert await run(grid=-8000, setpoint=-6000, batt=-6000, soc=950) == -3500
+    # 95 %, not full yet: only the caps apply, end of charge is the BMS's job
+    assert await run(grid=-8000, setpoint=-6000, batt=-6000, soc=950) == -6000
 
 
 async def test_full_stops_charging(ctrl):
