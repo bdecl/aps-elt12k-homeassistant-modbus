@@ -1,0 +1,229 @@
+#############################################################################
+# APsystems ELT / ELS - self-consumption controller (example package)
+#
+# Once Modbus control is enabled, the ELT no longer runs its own
+# self-consumption mode: the battery only does what the power setpoint
+# (register 40183) tells it. This package gives that job back to Home
+# Assistant: it charges the battery with what would otherwise be exported,
+# and discharges it to cover what would otherwise be imported.
+#
+# Requires the apsystems_storage integration from this repository.
+# Install as a package (see README), then edit section 1 below.
+#
+# Safety
+#   - Discharge stops at a minimum SoC (and optionally a minimum battery
+#     voltage), with hysteresis so it does not toggle around the limit.
+#   - Charge power tapers off linearly above a chosen SoC and stops when the
+#     battery reports "full" or SoC reaches the maximum.
+#   - The setpoint never exceeds the charge/discharge limits reported by the
+#     device itself (registers 40074 / 40075) nor the caps you set here.
+#   - Missing measurements (grid meter or battery unavailable) -> setpoint 0.
+#   These limits also apply in Manual mode.
+#
+# Control
+#   Incremental proportional step with acknowledgement: a new step starts
+#   from the last setpoint when the battery is following it, or from the
+#   measured battery power when it is not (BMS limit, battery full...), so
+#   the loop never winds up. Inside the dead band the setpoint is kept.
+#
+# Sign conventions
+#   setpoint / battery power : > 0 discharge, < 0 charge, 0 standby
+#   grid power               : > 0 import from the grid, < 0 export
+#############################################################################
+
+input_select:
+  elt_sc_mode:
+    name: ELT battery mode
+    icon: mdi:home-battery
+    # The first option is the one used the very first time: Off is the safe
+    # default. The selection is restored after a restart.
+    options:
+      - "Off"
+      - "Self-consumption"
+      - "Manual"
+
+input_number:
+  elt_sc_manual_power_w:
+    name: ELT manual setpoint
+    icon: mdi:tune-vertical
+    unit_of_measurement: W
+    min: -12000
+    max: 12000
+    step: 50
+    mode: box
+    initial: 0 # back to 0 after every restart, on purpose
+
+  # Internal: time of the last setpoint write (do not edit)
+  elt_sc_last_write_ts:
+    name: ELT last setpoint write
+    min: 0
+    max: 9999999999
+    step: 1
+    mode: box
+
+input_boolean:
+  # Internal: discharge permission with hysteresis (do not edit)
+  elt_sc_discharge_ok:
+    name: ELT discharge allowed
+    icon: mdi:battery-arrow-down
+
+automation:
+  - id: elt_self_consumption_controller
+    alias: "ELT - Self-consumption controller"
+    description: >
+      Self-consumption control of an APsystems ELT/ELS battery through the
+      apsystems_storage integration. Modes: Off, Self-consumption, Manual.
+    mode: single
+    max_exceeded: silent
+    trace:
+      stored_traces: 20
+
+    triggers:
+      - trigger: time_pattern
+        seconds: "/5"
+      - trigger: state
+        entity_id:
+          - input_select.elt_sc_mode
+          - input_number.elt_sc_manual_power_w
+
+    variables:
+      # =====================================================================
+      # 1. YOUR ENTITIES - edit this block
+      #    The integration names entities after the device, e.g.
+      #    "ELT-12 (1234)" -> number.elt_12_1234_power_setpoint
+      #    Replace elt_12_xxxx with the prefix of your own entities.
+      # =====================================================================
+      setpoint_entity: number.elt_12_xxxx_power_setpoint
+      battery_power_entity: sensor.elt_12_xxxx_battery_power
+      soc_entity: sensor.elt_12_xxxx_state_of_charge
+      voltage_entity: sensor.elt_12_xxxx_battery_voltage
+      charge_status_entity: sensor.elt_12_xxxx_charge_status
+      max_charge_rate_entity: sensor.elt_12_xxxx_max_charge_rate
+      max_discharge_rate_entity: sensor.elt_12_xxxx_max_discharge_rate
+
+      # Grid power at the connection point (all phases). Either the meter
+      # wired to the ELT (the integration's "Grid power" sensor) or any other
+      # fast meter (Shelly EM/3EM...). It must read > 0 when importing:
+      # with the battery idle and the house consuming, check the sign.
+      # If your meter reports import as negative, set grid_sign to -1.
+      grid_entity: sensor.elt_12_xxxx_grid_power
+      grid_sign: 1
+
+      # =====================================================================
+      # 2. BATTERY LIMITS
+      # =====================================================================
+      soc_min: 15 # %, discharge stops at or below this SoC
+      soc_hysteresis: 3 # %, discharge resumes at soc_min + this
+      vbat_min: 0 # V, discharge also stops at or below this voltage (0 = off)
+      vbat_hysteresis: 0.5 # V, discharge resumes at vbat_min + this
+      soc_max: 100 # %, charge stops at this SoC
+      taper_start_soc: 90 # %, charge power starts decreasing above this SoC
+      taper_min_charge_w: 1000 # W, charge power allowed just below soc_max
+      max_charge_w: 6000 # W, your cap (the device limit also applies)
+      max_discharge_w: 6000 # W, your cap (the device limit also applies)
+
+      # =====================================================================
+      # 3. CONTROL TUNING - defaults are deliberately gentle
+      # =====================================================================
+      grid_target_w: 0 # W, grid power to aim for (e.g. 30 to avoid exports)
+      deadband_w: 50 # W, no new step while |grid - target| <= this
+      kp: 0.5 # fraction of the grid error corrected per step
+      max_step_w: 3000 # W, largest change per step
+      ack_tolerance_w: 150 # W, battery "follows" when within this of setpoint
+      ack_timeout_s: 20 # s, step anyway after this if it does not follow
+      heartbeat_s: 30 # s, rewrite the setpoint at least this often
+
+    actions:
+      # The setpoint itself must be readable, otherwise the device is offline
+      - condition: template
+        value_template: "{{ has_value(setpoint_entity) }}"
+
+      - variables:
+          mode: "{{ states('input_select.elt_sc_mode') }}"
+          now_ts: "{{ as_timestamp(now()) }}"
+          cur: "{{ states(setpoint_entity) | float(0) }}"
+          batt: "{{ states(battery_power_entity) | float(0) }}"
+          soc: "{{ states(soc_entity) | float(0) }}"
+          vbat: "{{ states(voltage_entity) | float(0) }}"
+          battery_ok: "{{ has_value(soc_entity) and has_value(battery_power_entity) }}"
+          grid_ok: "{{ has_value(grid_entity) }}"
+          grid: "{{ (states(grid_entity) | float(0)) * (grid_sign | float(1)) }}"
+
+          # --- discharge permission (Schmitt trigger on SoC / voltage) ---
+          discharge_was_ok: "{{ is_state('input_boolean.elt_sc_discharge_ok', 'on') }}"
+          too_low: >
+            {{ soc <= soc_min or (vbat_min > 0 and vbat <= vbat_min) }}
+          recovered: >
+            {{ soc >= soc_min + soc_hysteresis
+               and (vbat_min <= 0 or vbat >= vbat_min + vbat_hysteresis) }}
+          discharge_ok: >
+            {% if not battery_ok or too_low %}{{ false }}
+            {% elif recovered %}{{ true }}
+            {% else %}{{ discharge_was_ok }}{% endif %}
+
+          # --- power limits (W, both >= 0) ---
+          charge_cap: >
+            {% set cap = [max_charge_w, states(max_charge_rate_entity) | float(0)] | min %}
+            {% if not battery_ok or soc >= soc_max
+                  or is_state(charge_status_entity, 'full') %}
+              0
+            {% elif soc > taper_start_soc and soc_max > taper_start_soc %}
+              {% set f = (soc_max - soc) / (soc_max - taper_start_soc) %}
+              {% set floor = [taper_min_charge_w, cap] | min %}
+              {{ (floor + (cap - floor) * f) | round(0) }}
+            {% else %}
+              {{ cap }}
+            {% endif %}
+          discharge_cap: >
+            {% if discharge_ok %}
+              {{ [max_discharge_w, states(max_discharge_rate_entity) | float(0)] | min }}
+            {% else %}0{% endif %}
+
+          # --- acknowledgement: is the battery following the setpoint? ---
+          last_write: "{{ states('input_number.elt_sc_last_write_ts') | float(0) }}"
+          since_write: "{{ now_ts - last_write }}"
+          tolerance: "{{ [ack_tolerance_w, (cur | abs) * 0.05] | max }}"
+          following: "{{ (batt - cur) | abs <= tolerance }}"
+          can_step: "{{ following or since_write >= ack_timeout_s }}"
+          base: "{{ cur if following else batt }}"
+
+          # --- self-consumption step ---
+          error: "{{ grid - grid_target_w }}"
+          step: "{{ [[kp * error, max_step_w] | min, 0 - max_step_w] | max }}"
+
+          wanted: >
+            {% if mode == 'Manual' %}
+              {{ states('input_number.elt_sc_manual_power_w') | float(0) }}
+            {% elif mode == 'Self-consumption' %}
+              {% if not (battery_ok and grid_ok) %}0
+              {% elif error | abs <= deadband_w or not can_step %}{{ cur }}
+              {% else %}{{ base + step }}{% endif %}
+            {% else %}0{% endif %}
+
+          final: >
+            {{ ([[wanted | float(0), discharge_cap | float(0)] | min,
+                 0 - (charge_cap | float(0))] | max) | round(0) | int }}
+
+      # Keep the discharge permission up to date
+      - if:
+          - condition: template
+            value_template: "{{ discharge_ok != discharge_was_ok }}"
+        then:
+          - action: "input_boolean.turn_{{ 'on' if discharge_ok else 'off' }}"
+            target:
+              entity_id: input_boolean.elt_sc_discharge_ok
+
+      # Write only on change, or as a periodic refresh
+      - condition: template
+        value_template: "{{ (final - cur) | abs >= 1 or since_write >= heartbeat_s }}"
+      - action: number.set_value
+        target:
+          entity_id: "{{ setpoint_entity }}"
+        data:
+          value: "{{ final }}"
+        continue_on_error: true
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.elt_sc_last_write_ts
+        data:
+          value: "{{ now_ts | int }}"

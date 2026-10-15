@@ -100,6 +100,56 @@ loops stay in your automations: set `number.<device>_power_setpoint` from
 them with `number.set_value`. If your automation does not refresh the setpoint
 itself, the keepalive option rewrites the last value periodically.
 
+### Self-consumption controller (example package)
+
+With Modbus enabled, the ELT no longer runs its own self-consumption mode.
+[`examples/self_consumption.yaml`](examples/self_consumption.yaml) gives that
+job to Home Assistant, using the entities of this integration: it charges the
+battery with what would otherwise be exported and discharges it to cover what
+would otherwise be imported.
+
+**Modes** (`input_select.elt_sc_mode`): *Off* (setpoint 0, the default the
+first time), *Self-consumption*, *Manual* (fixed setpoint from
+`input_number.elt_sc_manual_power_w`).
+
+**Safety limits, applied in every mode, Manual included**
+
+| Limit | Default | Behaviour |
+|---|---|---|
+| Minimum SoC | 15 % | Discharge stops at or below it, resumes at 15 + 3 % |
+| Minimum voltage | off | Same, on battery voltage (resumes at min + 0.5 V) |
+| Charge taper | above 90 % | Charge power decreases linearly down to 1000 W near 100 % |
+| Full battery | – | Charge stops when the device reports *full* or SoC reaches the maximum |
+| Power caps | 6000 W | Your caps and the limits reported by the device (40074 / 40075) |
+| Missing data | – | Grid meter or battery unavailable → setpoint 0 |
+
+**Install**
+
+1. Load the file as a [package](https://www.home-assistant.io/docs/configuration/packages/):
+   ```yaml
+   homeassistant:
+     packages:
+       elt_self_consumption: !include packages/self_consumption.yaml
+   ```
+2. In the `variables:` block at the top of the automation, replace
+   `elt_12_xxxx` with the prefix of your entities (*Settings → Devices →*
+   your ELT), choose the grid meter and adjust the limits.
+3. **Check the grid sign**: with the battery idle and the house consuming,
+   the grid sensor must be positive. If not, set `grid_sign: -1`.
+4. Restart, then select *Self-consumption*.
+
+The control loop is an incremental proportional step with acknowledgement:
+each step starts from the last setpoint when the battery follows it, and from
+the measured battery power when it does not (BMS limit, battery full), so it
+cannot wind up. It runs every 5 s, the integration's default polling
+interval. Tuning values (`kp`, dead band, step size, timeouts) are in the same
+`variables:` block; the defaults are deliberately gentle. The tests in
+`tests_ha/test_self_consumption.py` run this exact file against a simulated
+ELT for every limit above.
+
+Do not run it together with Option B's script, or with any other automation
+writing the power setpoint.
+
 ### Scale factors
 
 Scales match the values measured on a live ELT-12K. The PDF protocol states
