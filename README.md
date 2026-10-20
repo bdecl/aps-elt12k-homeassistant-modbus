@@ -155,6 +155,28 @@ ELT for every limit above.
 Do not run it together with Option B's script, or with any other automation
 writing the power setpoint.
 
+### Example dashboard
+
+[`examples/dashboard.yaml`](examples/dashboard.yaml) is a ready-made
+dashboard using built-in cards only (no HACS): state, control, energy and
+limits, 24 h graphs, alarms and diagnostics.
+
+1. *Settings → Dashboards → Add dashboard → New dashboard from scratch*.
+2. Open it, *⋮ → Edit dashboard → ⋮ → Raw configuration editor*, and paste
+   the whole file.
+3. Replace every `elt_12_xxxx` with the prefix of your entities.
+4. The *Control* section uses the helpers of the self-consumption package
+   above; delete that section if you do not use it.
+
+`tests_ha/test_dashboard.py` checks that every entity the dashboard uses is
+created by the integration and the package.
+
+> Devices added with v0.1.0/v0.1.1 may be named "Model (1234)" instead of
+> "ELT-12 (1234)", because the ELT-12 answers the placeholder text `Model`
+> in its model register. Their entities then start with `model_1234_`: use
+> that prefix, or rename the device. v0.1.2 names new devices from the serial
+> number and proposes 3 phases for the ELT-12 again.
+
 ### Scale factors
 
 Scales match the values measured on a live ELT-12K. The PDF protocol states

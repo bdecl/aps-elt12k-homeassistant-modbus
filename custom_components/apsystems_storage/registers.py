@@ -225,19 +225,25 @@ def active_bits(value: int | None, names: dict[int, str]) -> list[str]:
     return [names.get(b, f"bit_{b}") for b in range(32) if value >> b & 1]
 
 
-def detect_model(serial: str | None, model: str | None) -> tuple[str, int]:
-    """Return (model name, default phase count) from the serial prefix.
+GENERIC_MODELS = {"model", "unknown", "n/a", "none", "-"}
 
-    The model string (40020) is preferred when the device implements it.
+
+def detect_model(serial: str | None, model: str | None) -> tuple[str, int]:
+    """Return (model name, default phase count).
+
+    The serial prefix is authoritative: the ELT-12 answers the generic text
+    "Model" in the SunSpec model register (40020), so that string is only used
+    for serials we do not recognise, and never when it is a placeholder.
     """
-    if model:
-        name = model
-    elif serial and serial.startswith("B050"):
+    model = (model or "").strip()
+    if serial and serial.startswith("B050"):
         name = "ELT-12"
     elif serial and serial.startswith("B040"):
         name = "ELS-11.4"
     elif serial and serial.startswith("215"):
         name = "ELS-5K"
+    elif model and model.lower() not in GENERIC_MODELS:
+        name = model
     else:
         name = "APsystems storage"
     phases = 3 if "ELT" in name.upper() else 1

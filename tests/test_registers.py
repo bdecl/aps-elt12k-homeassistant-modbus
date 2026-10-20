@@ -48,3 +48,9 @@ def test_bits_and_model():
     assert detect_model("B05000000001", None) == ("ELT-12", 3)
     assert detect_model("215000000001", None) == ("ELS-5K", 1)
     assert detect_model("B04000000001", None) == ("ELS-11.4", 1)
+    # the ELT-12 reports the placeholder "Model" in 40020: serial prefix wins
+    assert detect_model("B05000000637", "Model") == ("ELT-12", 3)
+    assert detect_model("B05000000637", "Something else") == ("ELT-12", 3)
+    # unknown serial: a real model string is used, a placeholder is not
+    assert detect_model("X1", "ELT-9") == ("ELT-9", 3)
+    assert detect_model("X1", "Model") == ("APsystems storage", 1)
