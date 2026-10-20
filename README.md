@@ -161,6 +161,8 @@ writing the power setpoint.
 dashboard using built-in cards only (no HACS): state, control, energy and
 limits, 24 h graphs, alarms and diagnostics.
 
+![Example dashboard](docs/dashboard.png)
+
 1. *Settings → Dashboards → Add dashboard → New dashboard from scratch*.
 2. Open it, *⋮ → Edit dashboard → ⋮ → Raw configuration editor*, and paste
    the whole file.
