@@ -1,0 +1,206 @@
+#############################################################################
+# APsystems ELT / ELS - example dashboard
+#
+# Built-in cards only (no HACS needed).
+#
+# How to use
+#   1. Settings > Dashboards > Add dashboard > "New dashboard from scratch".
+#   2. Open it, three-dot menu > Edit dashboard > three-dot menu >
+#      Raw configuration editor, and paste this whole file.
+#   3. Replace every "elt_12_xxxx" with the prefix of your own entities:
+#      the integration names entities after the device, e.g.
+#      "ELT-12 (1234)" -> sensor.elt_12_1234_state_of_charge
+#      (Settings > Devices & services > APsystems Storage > your device).
+#   4. The "Control" section uses the helpers of examples/self_consumption.yaml.
+#      If you do not use that package, delete that section.
+#
+# Notes
+#   - Battery power: > 0 discharge, < 0 charge.
+#   - Grid power needs the meter wired to the ELT; without it, remove it or
+#     use your own meter entity (Shelly EM/3EM...).
+#   - Graphs are split by unit on purpose: a cell or pack voltage next to a
+#     power in watts would look like a flat line.
+#############################################################################
+
+title: Home battery
+views:
+  - title: Battery
+    path: battery
+    icon: mdi:home-battery
+    type: sections
+    max_columns: 3
+    sections:
+      # ---------------------------------------------------------------- state
+      - type: grid
+        cards:
+          - type: heading
+            heading: State
+            icon: mdi:battery-heart-variant
+          - type: tile
+            entity: sensor.elt_12_xxxx_state_of_charge
+            name: State of charge
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.elt_12_xxxx_battery_power
+            name: Battery power
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.elt_12_xxxx_charge_status
+            name: Status
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.elt_12_xxxx_grid_power
+            name: Grid power
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.elt_12_xxxx_battery_voltage
+            name: Battery voltage
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.elt_12_xxxx_dc_current
+            name: DC current
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.elt_12_xxxx_battery_temperature
+            name: Battery temp.
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.elt_12_xxxx_pcs_temperature
+            name: PCS temp.
+            grid_options:
+              columns: 6
+
+      # -------------------------------------------------------------- control
+      - type: grid
+        cards:
+          - type: heading
+            heading: Control
+            icon: mdi:tune-vertical
+          - type: tile
+            entity: input_select.elt_sc_mode
+            name: Mode
+            features:
+              - type: select-options
+          - type: tile
+            entity: input_number.elt_sc_manual_power_w
+            name: Manual setpoint (Manual mode)
+            features:
+              - type: numeric-input
+                style: buttons
+          - type: tile
+            entity: number.elt_12_xxxx_power_setpoint
+            name: Setpoint sent to the ELT
+          - type: tile
+            entity: input_boolean.elt_sc_discharge_ok
+            name: Discharge allowed (SoC / voltage)
+          - type: entities
+            title: Reserves
+            entities:
+              - entity: number.elt_12_xxxx_soc_reserve_min
+                name: SoC reserve min
+              - entity: number.elt_12_xxxx_soc_reserve_max
+                name: SoC reserve max
+
+      # --------------------------------------------------------------- energy
+      - type: grid
+        cards:
+          - type: heading
+            heading: Energy and limits
+            icon: mdi:lightning-bolt
+          - type: tile
+            entity: sensor.elt_12_xxxx_daily_charge_energy
+            name: Charged today
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.elt_12_xxxx_daily_discharge_energy
+            name: Discharged today
+            grid_options:
+              columns: 6
+          - type: entities
+            title: Limits reported by the device
+            entities:
+              - entity: sensor.elt_12_xxxx_max_charge_rate
+                name: Max charge power (BMS)
+              - entity: sensor.elt_12_xxxx_max_discharge_rate
+                name: Max discharge power (BMS)
+              - entity: sensor.elt_12_xxxx_energy_capacity
+                name: Capacity
+              - entity: sensor.elt_12_xxxx_state_of_health
+                name: State of health
+
+      # --------------------------------------------------------------- graphs
+      - type: grid
+        column_span: 2
+        cards:
+          - type: heading
+            heading: Last 24 hours
+            icon: mdi:chart-line
+          - type: history-graph
+            title: Power (W)
+            hours_to_show: 24
+            grid_options:
+              columns: full
+              rows: 5
+            entities:
+              - entity: sensor.elt_12_xxxx_battery_power
+                name: Battery
+              - entity: sensor.elt_12_xxxx_grid_power
+                name: Grid
+              - entity: number.elt_12_xxxx_power_setpoint
+                name: Setpoint
+          - type: history-graph
+            title: State of charge (%)
+            hours_to_show: 24
+            grid_options:
+              columns: full
+              rows: 4
+            entities:
+              - entity: sensor.elt_12_xxxx_state_of_charge
+                name: SoC
+          - type: history-graph
+            title: Battery voltage (V)
+            hours_to_show: 24
+            grid_options:
+              columns: full
+              rows: 4
+            entities:
+              - entity: sensor.elt_12_xxxx_battery_voltage
+                name: Battery voltage
+
+      # ---------------------------------------------------------- diagnostics
+      - type: grid
+        cards:
+          - type: heading
+            heading: Alarms and diagnostics
+            icon: mdi:alert-circle-outline
+          - type: tile
+            entity: binary_sensor.elt_12_xxxx_battery_alarm
+            name: Battery alarm
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: binary_sensor.elt_12_xxxx_pcs_alarm
+            name: PCS alarm
+            grid_options:
+              columns: 6
+          - type: entities
+            title: Details
+            entities:
+              - entity: sensor.elt_12_xxxx_battery_events
+                name: Battery events (bits)
+              - entity: sensor.elt_12_xxxx_pcs_events
+                name: PCS events (bits)
+              - entity: sensor.elt_12_xxxx_chip_1_version
+                name: Chip 1 firmware
+              - entity: sensor.elt_12_xxxx_chip_2_version
+                name: Chip 2 firmware
+              - entity: sensor.elt_12_xxxx_chip_3_version
+                name: Chip 3 firmware
