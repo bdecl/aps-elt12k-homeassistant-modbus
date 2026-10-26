@@ -63,6 +63,13 @@ Give that interface a fixed address (DHCP reservation or static IP) so the
 
 ### Install
 
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=bdecl&repository=aps-elt12k-homeassistant-modbus&category=integration)
+[![Open your Home Assistant instance and start setting up APsystems Storage.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=apsystems_storage)
+
+The first button opens this repository in HACS (it offers to add it as a
+custom repository); the second starts the setup of the integration once it is
+installed and Home Assistant has restarted. Or step by step:
+
 1. In HACS → *Custom repositories*, add this repository as type **Integration**.
 2. Install **APsystems Storage (ELT / ELS) Modbus** and restart Home Assistant.
 3. **Remove any `modbus:` hub pointing at the device** (Option B) and restart,
