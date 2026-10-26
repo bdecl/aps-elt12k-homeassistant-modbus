@@ -1,4 +1,5 @@
-"""Hub against a pymodbus server: full-block read and per-run fallback."""
+"""Hub against a pymodbus server, through a modbus_connection unit as Home
+Assistant hands it out: full-block read and per-run fallback."""
 import asyncio
 import socket
 
@@ -7,6 +8,9 @@ from pymodbus.datastore import (
     ModbusDeviceContext, ModbusSequentialDataBlock, ModbusServerContext, ModbusSparseDataBlock,
 )
 from pymodbus.server import ModbusTcpServer
+
+from modbus_connection import ModbusTcpParams
+from modbus_connection.tmodbus import ModbusConnection
 
 from apsys.hub import StorageHub
 from apsys.registers import BLOCK_COMMON, BLOCK_STORAGE, REG_BY_KEY
@@ -48,13 +52,14 @@ async def _run(documented_only: bool):
     server = ModbusTcpServer(ctx, address=("127.0.0.1", port))
     task = asyncio.create_task(server.serve_forever())
     await asyncio.sleep(0.3)
-    hub = StorageHub("127.0.0.1", port, 1)
+    conn = ModbusConnection(ModbusTcpParams(host="127.0.0.1", port=port))
+    hub = StorageHub(conn.for_unit(1), "127.0.0.1", port)
     try:
         common = await hub.read_block(BLOCK_COMMON)
         data = await hub.read_block(BLOCK_STORAGE)
         return hub, common, data
     finally:
-        await hub.close()
+        await conn.close()
         await server.shutdown()
         task.cancel()
 

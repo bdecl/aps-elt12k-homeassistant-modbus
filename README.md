@@ -3,7 +3,7 @@
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories)
 [![GitHub release](https://img.shields.io/github/v/release/bdecl/aps-elt12k-homeassistant-modbus)](https://github.com/bdecl/aps-elt12k-homeassistant-modbus/releases)
 [![Validate](https://github.com/bdecl/aps-elt12k-homeassistant-modbus/actions/workflows/validate.yml/badge.svg)](https://github.com/bdecl/aps-elt12k-homeassistant-modbus/actions/workflows/validate.yml)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.12%2B-blue.svg)](https://www.home-assistant.io/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.10%2B-blue.svg)](https://www.home-assistant.io/)
 [![Installs](https://img.shields.io/badge/dynamic/json?color=41BDF5&logo=home-assistant&label=installs&cacheSeconds=15600&url=https://analytics.home-assistant.io/custom_integrations.json&query=$.apsystems_storage.total)](https://analytics.home-assistant.io/)
 [![License](https://img.shields.io/github/license/bdecl/aps-elt12k-homeassistant-modbus)](LICENSE)
 
@@ -68,7 +68,16 @@ Give that interface a fixed address (DHCP reservation or static IP) so the
 
 The first button opens this repository in HACS (it offers to add it as a
 custom repository); the second starts the setup of the integration once it is
-installed and Home Assistant has restarted. Or step by step:
+installed and Home Assistant has restarted. Home Assistant 2026.10 or newer is
+required.
+
+The integration does not open its own socket: it takes the device from Home
+Assistant's `modbus` integration, which keeps a single connection per host and
+port and queues the requests of every integration that uses it. That fits the
+ELT's single Modbus slot. A `modbus:` hub declared in YAML still opens a
+separate connection, hence step 3.
+
+Step by step:
 
 1. In HACS → *Custom repositories*, add this repository as type **Integration**.
 2. Install **APsystems Storage (ELT / ELS) Modbus** and restart Home Assistant.

@@ -1,21 +1,22 @@
-"""Single Modbus TCP connection to the storage system.
+"""Modbus access to the storage system, one request at a time.
 
 The ELT accepts a second TCP connection but never answers it: only one client
-is served. Everything therefore goes through this object, one request at a
-time, on one persistent connection.
+is served. The unit is therefore taken from Home Assistant's `modbus`
+integration, which keeps one connection per host and port for every
+integration that asks for it and serialises their requests. This module only
+needs a `modbus_connection` unit, so it can be tested without Home Assistant.
 """
 from __future__ import annotations
 
-import asyncio
-import inspect
 import logging
 
-from pymodbus.client import AsyncModbusTcpClient
-from pymodbus.exceptions import ModbusException
+from modbus_connection import ModbusError, ModbusExceptionError, ModbusUnit
 
 from .registers import Block, decode
 
 _LOGGER = logging.getLogger(__name__)
+
+TIMEOUT = 3.0  # s per request
 
 
 class HubError(Exception):
@@ -27,50 +28,29 @@ class IllegalAddress(Exception):
 
 
 class StorageHub:
-    def __init__(self, host: str, port: int, unit: int, timeout: float = 3.0) -> None:
-        self.host, self.port, self.unit = host, port, unit
-        self._client = AsyncModbusTcpClient(host, port=port, timeout=timeout, retries=1)
-        self._lock = asyncio.Lock()
-        # pymodbus renamed slave= to device_id= in 3.10
-        params = inspect.signature(self._client.read_holding_registers).parameters
-        self._unit_kw = "device_id" if "device_id" in params else "slave"
+    def __init__(self, unit: ModbusUnit, host: str, port: int, timeout: float = TIMEOUT) -> None:
+        self.host, self.port = host, port
+        self._unit = unit
+        # The link's timeout is the largest any holder asks for.
+        unit.require_timeout(timeout)
         self.fragmented: dict[str, bool] = {}
 
-    async def _ensure_connected(self) -> None:
-        if not self._client.connected:
-            if not await self._client.connect():
-                raise HubError(f"cannot connect to {self.host}:{self.port}")
-
-    async def close(self) -> None:
-        self._client.close()
-
     async def read(self, address: int, count: int) -> list[int]:
-        async with self._lock:
-            await self._ensure_connected()
-            try:
-                rr = await self._client.read_holding_registers(
-                    address, count=count, **{self._unit_kw: self.unit}
-                )
-            except ModbusException as err:
-                # Silence: typical when another client already holds the ELT
-                self._client.close()
-                raise HubError(str(err)) from err
-        if rr.isError():
-            raise IllegalAddress(f"{address}+{count}: {rr}")
-        return list(rr.registers)
+        try:
+            return list(await self._unit.read_holding_registers(address, count))
+        except ModbusExceptionError as err:
+            raise IllegalAddress(f"{address}+{count}: {err}") from err
+        except ModbusError as err:
+            # Silence: typical when another client already holds the ELT
+            raise HubError(str(err)) from err
 
     async def write(self, address: int, word: int) -> None:
-        async with self._lock:
-            await self._ensure_connected()
-            try:
-                rr = await self._client.write_register(
-                    address, word, **{self._unit_kw: self.unit}
-                )
-            except ModbusException as err:
-                self._client.close()
-                raise HubError(str(err)) from err
-        if rr.isError():
-            raise IllegalAddress(f"write {address}={word}: {rr}")
+        try:
+            await self._unit.write_register(address, word)
+        except ModbusExceptionError as err:
+            raise IllegalAddress(f"write {address}={word}: {err}") from err
+        except ModbusError as err:
+            raise HubError(str(err)) from err
 
     async def read_block(self, block: Block) -> dict[str, object]:
         """Read a block in one request, or run by run if the device rejects
