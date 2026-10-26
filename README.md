@@ -1,5 +1,12 @@
 # APsystems ELT-12K / ELS – Home Assistant Modbus
 
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories)
+[![GitHub release](https://img.shields.io/github/v/release/bdecl/aps-elt12k-homeassistant-modbus)](https://github.com/bdecl/aps-elt12k-homeassistant-modbus/releases)
+[![Validate](https://github.com/bdecl/aps-elt12k-homeassistant-modbus/actions/workflows/validate.yml/badge.svg)](https://github.com/bdecl/aps-elt12k-homeassistant-modbus/actions/workflows/validate.yml)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.12%2B-blue.svg)](https://www.home-assistant.io/)
+[![Installs](https://img.shields.io/badge/dynamic/json?color=41BDF5&logo=home-assistant&label=installs&cacheSeconds=15600&url=https://analytics.home-assistant.io/custom_integrations.json&query=$.apsystems_storage.total)](https://analytics.home-assistant.io/)
+[![License](https://img.shields.io/github/license/bdecl/aps-elt12k-homeassistant-modbus)](LICENSE)
+
 This repository connects the **APsystems ELT-12K** energy storage system
 (and, experimentally, the **ELS-5K / ELS-11.4**, which share the same Modbus
 protocol) to **Home Assistant** over Modbus TCP.
