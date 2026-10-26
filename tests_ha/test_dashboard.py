@@ -6,6 +6,8 @@ elt_12_xxxx placeholder) must have a state.
 """
 import pathlib
 
+import pytest
+
 from homeassistant.core import HomeAssistant
 from homeassistant.util.yaml import parse_yaml
 
@@ -13,6 +15,10 @@ from test_integration import _setup
 from test_self_consumption import _load_package, device  # noqa: F401  (fixture)
 
 DASHBOARD = pathlib.Path(__file__).parents[1] / "examples" / "dashboard.yaml"
+
+# The package's controller runs on a time pattern, whose next tick is still
+# scheduled when a test ends; that is expected, not a leak.
+pytestmark = pytest.mark.parametrize("expected_lingering_timers", [True])
 
 
 def _entity_ids(node):

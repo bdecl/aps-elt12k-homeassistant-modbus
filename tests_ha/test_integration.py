@@ -94,10 +94,10 @@ async def test_cannot_connect(hass: HomeAssistant):
 
 async def test_form_uses_input_boxes(hass: HomeAssistant):
     """Port and unit ID are typed in a box, not picked on a slider."""
-    import voluptuous_serialize
+    import probatio  # what the frontend view serialises flow forms with
     from homeassistant.helpers import config_validation as cv
     r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
-    fields = {f["name"]: f for f in voluptuous_serialize.convert(
+    fields = {f["name"]: f for f in probatio.to_field_list(
         r["data_schema"], custom_serializer=cv.custom_serializer)}
     for name in ("port", "unit_id"):
         assert fields[name]["selector"]["number"]["mode"] == "box"
@@ -112,3 +112,27 @@ async def test_options_flow(hass: HomeAssistant, elt):
     assert r["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options["scan_interval"] == 10 and isinstance(entry.options["scan_interval"], int)
     await hass.async_block_till_done()
+
+
+async def test_uses_shared_connection(hass: HomeAssistant, elt):
+    """The ELT serves a single client, so everything rides on the modbus
+    integration's one link: the entry holds its unit there, a new identify
+    while it is loaded reuses that link, and unloading closes it."""
+    from homeassistant.components.modbus.connection import async_get_connection_info
+
+    port, _ = elt
+    entry = await _setup(hass, port, "3")
+    info = async_get_connection_info(hass)
+    assert len(info) == 1
+    assert info[0].endpoint == ("tcp", "127.0.0.1", port)
+    assert info[0].units == {entry.entry_id: [1]}
+
+    r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"host": "127.0.0.1", "port": port, "unit_id": 1})
+    assert r["type"] is FlowResultType.ABORT and r["reason"] == "already_configured", r
+    assert len(async_get_connection_info(hass)) == 1
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert async_get_connection_info(hass) == []
