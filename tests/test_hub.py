@@ -74,3 +74,49 @@ async def test_read_blocks(documented_only):
     assert data["charge_status"] == 3
     # gaps in the address space force the per-run fallback
     assert hub.fragmented.get("storage", False) is documented_only
+
+
+class _FlakyUnit:
+    """A unit whose first `lost` requests get no answer."""
+
+    def __init__(self, lost: int):
+        self.lost, self.calls = lost, 0
+
+    def require_timeout(self, seconds):
+        pass
+
+    async def _answer(self, value):
+        from modbus_connection import ModbusTimeoutError
+        self.calls += 1
+        if self.calls <= self.lost:
+            raise ModbusTimeoutError("no answer")
+        return value
+
+    async def read_holding_registers(self, address, count):
+        return await self._answer([7] * count)
+
+    async def write_register(self, address, value):
+        return await self._answer(None)
+
+
+@pytest.mark.asyncio
+async def test_one_lost_reply_is_retried():
+    """A single lost frame must not fail the poll (battery power would go
+    unavailable and the controller would drop the setpoint to 0)."""
+    unit = _FlakyUnit(lost=1)
+    hub = StorageHub(unit, "elt", 502)
+    assert await hub.read(40117, 1) == [7]
+    assert unit.calls == 2
+
+    unit = _FlakyUnit(lost=1)
+    await StorageHub(unit, "elt", 502).write(40183, 2000)
+    assert unit.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_persistent_silence_still_fails():
+    from apsys.hub import HubError
+    unit = _FlakyUnit(lost=99)
+    with pytest.raises(HubError):
+        await StorageHub(unit, "elt", 502).read(40117, 1)
+    assert unit.calls == 2
