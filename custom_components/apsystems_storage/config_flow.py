@@ -31,7 +31,7 @@ from .const import (
     MIN_SCAN_INTERVAL,
 )
 from .hub import HubError, IllegalAddress, StorageHub
-from .registers import REG_BY_KEY, decode, detect_model
+from .registers import REG_BY_KEY, decode, detect_model, entry_title
 
 def _box(minimum: int, maximum: int, unit: str | None = None) -> selector.NumberSelector:
     """Plain numeric input box (an int range would render as a slider)."""
@@ -96,8 +96,8 @@ class StorageConfigFlow(ConfigFlow, domain=DOMAIN):
                 else:
                     await self.async_set_unique_id(serial)
                     self._abort_if_unique_id_configured(updates={CONF_HOST: user_input[CONF_HOST]})
-                    model, self._default_phases = detect_model(serial, ident.get("model"))
-                    self._title = f"{model} ({serial[-4:]})"
+                    _, self._default_phases = detect_model(serial, ident.get("model"))
+                    self._title = entry_title(serial, ident.get("model"))
                     self._data = dict(user_input)
                     return await self.async_step_phases()
 

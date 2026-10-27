@@ -158,3 +158,26 @@ async def test_options_reload_without_update_listener(hass: HomeAssistant, elt, 
     await hass.async_block_till_done()
     assert "update listener" not in caplog.text
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_placeholder_title_is_renamed(hass: HomeAssistant, elt):
+    """Entries made before 0.1.2 are called "Model (xxxx)": renamed at setup
+    from the serial prefix, device included. A title the user chose stays."""
+    from homeassistant.helpers import device_registry as dr
+
+    port, _ = elt
+    entry = await _setup(hass, port, "3")
+    assert entry.title == "ELT-12 (0999)"
+
+    hass.config_entries.async_update_entry(entry, title="Model (0999)")
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.title == "ELT-12 (0999)"
+    device = dr.async_get(hass).async_get_device_by_identifier((DOMAIN, entry.unique_id), entry.entry_id)
+    assert device.name == "ELT-12 (0999)" and device.model == "ELT-12"
+
+    hass.config_entries.async_update_entry(entry, title="Batterie garage")
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.title == "Batterie garage"
+    assert await hass.config_entries.async_unload(entry.entry_id)
