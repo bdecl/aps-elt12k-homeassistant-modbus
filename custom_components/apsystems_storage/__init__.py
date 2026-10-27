@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 from .const import CONF_UNIT, DEFAULT_SCAN_INTERVAL, PLATFORMS
 from .coordinator import StorageCoordinator
 from .hub import StorageHub
+from .registers import entry_title, is_placeholder_title
 
 type StorageConfigEntry = ConfigEntry[StorageCoordinator]
 
@@ -25,6 +26,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: StorageConfigEntry) -> b
     coordinator = StorageCoordinator(hass, entry, hub, scan)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
+    # Entries made before 0.1.2 are named after the model register, which the
+    # ELT-12 fills with the placeholder "Model". The serial prefix tells the
+    # real model; the device takes the entry title as its name.
+    serial = entry.unique_id or ""
+    if serial and is_placeholder_title(entry.title, serial):
+        hass.config_entries.async_update_entry(
+            entry, title=entry_title(serial, (coordinator.data or {}).get("model"))
+        )
     coordinator.start_keepalive()
     # Options changes reload through OptionsFlowWithReload: no update listener.
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

@@ -1,5 +1,6 @@
 from apsys.registers import (
-    BLOCK_COMMON, BLOCK_STORAGE, REG_BY_KEY, active_bits, decode, detect_model, encode,
+    BLOCK_COMMON, BLOCK_STORAGE, REG_BY_KEY, active_bits, decode, detect_model, encode, entry_title,
+    is_placeholder_title,
     BATTERY_EVENT_BITS,
 )
 
@@ -54,3 +55,19 @@ def test_bits_and_model():
     # unknown serial: a real model string is used, a placeholder is not
     assert detect_model("X1", "ELT-9") == ("ELT-9", 3)
     assert detect_model("X1", "Model") == ("APsystems storage", 1)
+
+
+def test_entry_title_from_serial_prefix():
+    # The ELT-12 answers "Model" in 40020: the serial prefix decides.
+    assert entry_title("B05000000637", "Model") == "ELT-12 (0637)"
+    assert entry_title("B04000000123", None) == "ELS-11.4 (0123)"
+    assert entry_title("215000004567", "") == "ELS-5K (4567)"
+    assert entry_title("X99000001234", "Model") == "APsystems storage (1234)"
+
+
+def test_placeholder_titles_only():
+    assert is_placeholder_title("Model (0637)", "B05000000637")
+    assert is_placeholder_title("unknown (0637)", "B05000000637")
+    assert not is_placeholder_title("ELT-12 (0637)", "B05000000637")
+    assert not is_placeholder_title("Batterie garage", "B05000000637")
+    assert not is_placeholder_title("Model (9999)", "B05000000637")  # another serial

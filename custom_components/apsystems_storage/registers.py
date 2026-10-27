@@ -248,3 +248,16 @@ def detect_model(serial: str | None, model: str | None) -> tuple[str, int]:
         name = "APsystems storage"
     phases = 3 if "ELT" in name.upper() else 1
     return name, phases
+
+
+def entry_title(serial: str, model: str | None) -> str:
+    """Name of the config entry and of the device: model and serial tail."""
+    name, _ = detect_model(serial, model)
+    return f"{name} ({serial[-4:]})"
+
+
+def is_placeholder_title(title: str, serial: str) -> bool:
+    """Whether a title is the one versions before 0.1.2 made from the model
+    register placeholder, e.g. "Model (0637)". A title the user typed is not."""
+    tail = f" ({serial[-4:]})"
+    return title.endswith(tail) and title[: -len(tail)].strip().lower() in GENERIC_MODELS
