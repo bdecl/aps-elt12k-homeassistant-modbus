@@ -21,6 +21,10 @@ from test_integration import BASE, _setup, _words
 PACKAGE = pathlib.Path(__file__).parents[1] / "examples" / "self_consumption.yaml"
 AUTOMATION = "automation.elt_self_consumption_controller"
 
+# The package's controller runs on a time pattern, whose next tick is still
+# scheduled when a test ends; that is expected, not a leak.
+pytestmark = pytest.mark.parametrize("expected_lingering_timers", [True])
+
 # registers written by the test (offset from 40000)
 SETPOINT, BATT, SOC, VBAT, STATUS, MAX_CHG, MAX_DIS = 183, 117, 81, 134, 86, 74, 75
 

@@ -1,4 +1,5 @@
-"""Hub against a pymodbus server: full-block read and per-run fallback."""
+"""Hub against a pymodbus server, through a modbus_connection unit as Home
+Assistant hands it out: full-block read and per-run fallback."""
 import asyncio
 import socket
 
@@ -7,6 +8,9 @@ from pymodbus.datastore import (
     ModbusDeviceContext, ModbusSequentialDataBlock, ModbusServerContext, ModbusSparseDataBlock,
 )
 from pymodbus.server import ModbusTcpServer
+
+from modbus_connection import ModbusTcpParams
+from modbus_connection.tmodbus import ModbusConnection
 
 from apsys.hub import StorageHub
 from apsys.registers import BLOCK_COMMON, BLOCK_STORAGE, REG_BY_KEY
@@ -48,13 +52,14 @@ async def _run(documented_only: bool):
     server = ModbusTcpServer(ctx, address=("127.0.0.1", port))
     task = asyncio.create_task(server.serve_forever())
     await asyncio.sleep(0.3)
-    hub = StorageHub("127.0.0.1", port, 1)
+    conn = ModbusConnection(ModbusTcpParams(host="127.0.0.1", port=port))
+    hub = StorageHub(conn.for_unit(1), "127.0.0.1", port)
     try:
         common = await hub.read_block(BLOCK_COMMON)
         data = await hub.read_block(BLOCK_STORAGE)
         return hub, common, data
     finally:
-        await hub.close()
+        await conn.close()
         await server.shutdown()
         task.cancel()
 
@@ -69,3 +74,49 @@ async def test_read_blocks(documented_only):
     assert data["charge_status"] == 3
     # gaps in the address space force the per-run fallback
     assert hub.fragmented.get("storage", False) is documented_only
+
+
+class _FlakyUnit:
+    """A unit whose first `lost` requests get no answer."""
+
+    def __init__(self, lost: int):
+        self.lost, self.calls = lost, 0
+
+    def require_timeout(self, seconds):
+        pass
+
+    async def _answer(self, value):
+        from modbus_connection import ModbusTimeoutError
+        self.calls += 1
+        if self.calls <= self.lost:
+            raise ModbusTimeoutError("no answer")
+        return value
+
+    async def read_holding_registers(self, address, count):
+        return await self._answer([7] * count)
+
+    async def write_register(self, address, value):
+        return await self._answer(None)
+
+
+@pytest.mark.asyncio
+async def test_one_lost_reply_is_retried():
+    """A single lost frame must not fail the poll (battery power would go
+    unavailable and the controller would drop the setpoint to 0)."""
+    unit = _FlakyUnit(lost=1)
+    hub = StorageHub(unit, "elt", 502)
+    assert await hub.read(40117, 1) == [7]
+    assert unit.calls == 2
+
+    unit = _FlakyUnit(lost=1)
+    await StorageHub(unit, "elt", 502).write(40183, 2000)
+    assert unit.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_persistent_silence_still_fails():
+    from apsys.hub import HubError
+    unit = _FlakyUnit(lost=99)
+    with pytest.raises(HubError):
+        await StorageHub(unit, "elt", 502).read(40117, 1)
+    assert unit.calls == 2
