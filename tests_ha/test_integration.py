@@ -136,3 +136,25 @@ async def test_uses_shared_connection(hass: HomeAssistant, elt):
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
     assert async_get_connection_info(hass) == []
+
+
+async def test_options_reload_without_update_listener(hass: HomeAssistant, elt, caplog):
+    """Options changes reload through OptionsFlowWithReload; an update
+    listener would draw a deprecation warning from Home Assistant."""
+    port, _ = elt
+    entry = await _setup(hass, port, "3")
+    assert not entry.update_listeners
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    await hass.config_entries.options.async_configure(
+        r["flow_id"], {"scan_interval": 9.0, "phases": "3", "setpoint_keepalive": 0.0})
+    await hass.async_block_till_done()
+    assert entry.runtime_data.update_interval.total_seconds() == 9
+
+    # Same device added again: updates the host, no update listener warning.
+    r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"host": "127.0.0.1", "port": port, "unit_id": 1})
+    assert r["reason"] == "already_configured"
+    await hass.async_block_till_done()
+    assert "update listener" not in caplog.text
+    assert await hass.config_entries.async_unload(entry.entry_id)
