@@ -7,7 +7,13 @@ from modbus_connection import ModbusTcpParams
 import voluptuous as vol
 
 from homeassistant.components.modbus import async_get_temporary_unit
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+    OptionsFlowWithReload,
+)
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
@@ -121,7 +127,9 @@ class StorageConfigFlow(ConfigFlow, domain=DOMAIN):
         return StorageOptionsFlow()
 
 
-class StorageOptionsFlow(OptionsFlow):
+class StorageOptionsFlow(OptionsFlowWithReload):
+    """Phases, scan interval and keepalive; the entry reloads when they change."""
+
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             user_input[CONF_PHASES] = int(user_input[CONF_PHASES])
