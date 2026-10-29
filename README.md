@@ -28,6 +28,48 @@ Two ways to use it:
 > **Use one or the other, never both.** The ELT serves a **single Modbus
 > client**: a second connection is accepted at TCP level but never answered.
 
+## Quick start
+
+1. **On the ELT**, enable Modbus TCP and give the **wired** Ethernet interface a
+   fixed address. Modbus is not served over Wi-Fi.
+2. **Install** through HACS, then restart Home Assistant (2026.10 or newer).
+
+   [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=bdecl&repository=aps-elt12k-homeassistant-modbus&category=integration)
+3. **Remove any `modbus:` hub** declared in YAML for the ELT, and restart: the
+   ELT answers a single Modbus client.
+4. **Add the integration**: IP of the wired interface, port `502`, unit ID `1`,
+   then confirm the number of phases.
+
+   [![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=apsystems_storage)
+5. **Optional:** the [self-consumption package](#self-consumption-controller-example-package)
+   to drive the battery from a grid meter, and the [example dashboard](#example-dashboard).
+
+## How it fits together
+
+![How the integration fits together](docs/architecture.svg)
+
+The integration creates one device for the ELT, with its measurements and its
+controls. It reaches the ELT on port 502 of the wired interface, through Home
+Assistant's shared Modbus connection. Once Modbus is enabled the ELT stops
+running its own modes and only follows the power setpoint, so something has to
+write it: your automation, or the self-consumption package. The battery's BMS
+keeps the last word on charge and discharge limits, over CAN.
+
+## Compatibility
+
+| | Status | Notes |
+|---|---|---|
+| **ELT-12K** (three-phase) | ✅ Tested | Option A and Option B |
+| **ELS-5K / ELS-11.4** (single-phase) | ⚠️ Experimental, untested | Same Modbus protocol; L1 and totals only. Reports welcome |
+| Wired Ethernet, Modbus TCP | ✅ Required | Port 502 |
+| Wi-Fi interface | ❌ No Modbus | Cloud and EMA only |
+| RS485 / RS232 serial | ❌ Not supported | TCP only for now |
+| Home Assistant | 2026.10 or newer | For the integration (shared Modbus connection) |
+
+If you run it on an ELS, an issue with the integration's diagnostics attached
+(*Download diagnostics*) is very welcome: it lists the scale factors the device
+reports.
+
 ---
 
 ## Features
@@ -70,13 +112,8 @@ Give that interface a fixed address (DHCP reservation or static IP) so the
 
 ### Install
 
-[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=bdecl&repository=aps-elt12k-homeassistant-modbus&category=integration)
-[![Open your Home Assistant instance and start setting up APsystems Storage.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=apsystems_storage)
-
-The first button opens this repository in HACS (it offers to add it as a
-custom repository); the second starts the setup of the integration once it is
-installed and Home Assistant has restarted. Home Assistant 2026.10 or newer is
-required.
+The buttons in [Quick start](#quick-start) open this repository in HACS and
+start the setup. Home Assistant 2026.10 or newer is required.
 
 The integration does not open its own socket: it takes the device from Home
 Assistant's `modbus` integration, which keeps a single connection per host and
@@ -108,7 +145,8 @@ L2/L3 entities are only created for three-phase units. Single-phase units
 
 ### How it reads the device
 
-- One persistent connection, all requests serialized.
+- Through Home Assistant's shared Modbus connection: one socket for every
+  integration that addresses the device, requests queued.
 - The whole storage model (40073–40183) is read in **one request per cycle**
   (default every 5 s). If a firmware rejects reads spanning undocumented
   addresses, the integration switches automatically to one request per
@@ -150,13 +188,13 @@ first time), *Self-consumption*, *Manual* (fixed setpoint from
 | Minimum voltage | off | Same, on battery voltage (resumes at min + 0.5 V) |
 | Full battery | – | Charge stops when the device reports *full* or SoC reaches the maximum |
 | Power caps | 6000 W | Your caps and the limits reported by the device (40074 / 40075) |
+| Missing data | – | Grid meter or battery unavailable → setpoint 0 |
 
 **End of charge is left to the BMS.** Reducing the charge current as the
 cells approach full is done by the battery's BMS, which sends its charge
 limit to the ELT over CAN. The package does not add its own SoC-based taper:
 near full, SoC is a poor guide on LiFePO4, and an extra limit would only slow
 the charge and push solar surplus to the grid.
-| Missing data | – | Grid meter or battery unavailable → setpoint 0 |
 
 **Install**
 
@@ -217,11 +255,85 @@ returns kWh directly. The scale-factor registers reported by the device are
 listed in the integration **diagnostics** (*Download diagnostics*): please
 attach them to any issue, especially for ELS units.
 
-### Status
+---
 
-- ELT-12K: tested.
-- ELS-5K / ELS-11.4: **experimental**, untested. Reports welcome.
-- Modbus TCP only for now (no RS485/RS232 serial transport).
+## FAQ and troubleshooting
+
+<details>
+<summary><b>Setup says there is no answer</b></summary>
+
+- Use the IP of the **wired** interface. Modbus is not served over Wi-Fi, and
+  port 502 simply does not answer there.
+- The ELT answers a **single Modbus client**: a second connection is accepted but
+  never answered. Remove any `modbus:` hub for the ELT from YAML (Option B), and
+  close any other Modbus tool, then restart Home Assistant.
+
+</details>
+
+<details>
+<summary><b>The battery stopped charging and discharging once Modbus was enabled</b></summary>
+
+That is how the ELT works: with Modbus enabled, its internal modes no longer run,
+and the battery only follows the power setpoint (register 40183). Load the
+[self-consumption package](#self-consumption-controller-example-package), or write
+the setpoint from your own automation with `number.set_value`.
+
+</details>
+
+<details>
+<summary><b>Charging slows down near full</b></summary>
+
+Expected. The battery's BMS lowers its charge limit as the cells approach full
+and sends it to the ELT over CAN; the ELT and the package follow it. Neither the
+integration nor the package adds an SoC-based taper of its own.
+
+</details>
+
+<details>
+<summary><b>Two automations fight over the setpoint</b></summary>
+
+Only one thing should write the power setpoint: the package, Option B's script or
+your own automation, never two at once. The last write always wins, so two
+writers make the battery hop between their values.
+
+</details>
+
+<details>
+<summary><b>My entities start with model_1234_</b></summary>
+
+Devices added with v0.1.0 or v0.1.1 can be named *Model (1234)*, because the
+ELT-12 answers the placeholder text `Model` in its model register. Use that
+prefix in the examples, or rename the device. Newer versions name the device
+from the serial number.
+
+</details>
+
+<details>
+<summary><b>The energy capacity looks wrong</b></summary>
+
+The protocol document gives a scale factor of -2 for the energy capacity
+(40073), but the device returns kWh directly; the integration follows the device.
+If another value looks off on your unit, attach the diagnostics to an issue: they
+list the scale factors the device reports.
+
+</details>
+
+<details>
+<summary><b>With an APsystems ECU, zero export stopped working</b></summary>
+
+While the ECU is linked to the ELT in EMA, the ECU accepts power-limit writes,
+reads them back correctly and never applies them. Remove the link in EMA. See
+[apsystems-ecu-sunspec-modbus](https://github.com/bdecl/apsystems-ecu-sunspec-modbus/blob/main/docs/elt-link-issue.md).
+
+</details>
+
+<details>
+<summary><b>The Installs badge shows an error</b></summary>
+
+The count comes from Home Assistant's public usage analytics. It appears once
+installations with *Usage analytics* turned on have reported the integration.
+
+</details>
 
 ---
 
