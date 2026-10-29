@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="custom_components/apsystems_storage/brand/dark_logo@2x.png">
+    <img alt="APS ELT / ELS — storage, local Modbus TCP" src="custom_components/apsystems_storage/brand/logo@2x.png" width="480">
+  </picture>
+</p>
+
 # APsystems ELT-12K / ELS – Home Assistant Modbus
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories)
