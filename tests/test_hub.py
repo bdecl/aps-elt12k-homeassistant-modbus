@@ -80,7 +80,10 @@ class _FlakyUnit:
     """A unit whose first `lost` requests get no answer."""
 
     def __init__(self, lost: int):
-        self.lost, self.calls = lost, 0
+        self.lost, self.calls, self.disconnects = lost, 0, 0
+
+    async def disconnect(self):
+        self.disconnects += 1
 
     def require_timeout(self, seconds):
         pass
@@ -120,3 +123,65 @@ async def test_persistent_silence_still_fails():
     with pytest.raises(HubError):
         await StorageHub(unit, "elt", 502).read(40117, 1)
     assert unit.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_retry_goes_through_a_new_link():
+    """A server that keeps the socket open but stops answering would ignore
+    the retry too: the link is dropped before retrying."""
+    unit = _FlakyUnit(lost=1)
+    hub = StorageHub(unit, "elt", 502)
+    assert await hub.read(40117, 1) == [7]
+    assert unit.disconnects == 1 and hub.recycles == 1
+
+    unit = _FlakyUnit(lost=0)
+    await StorageHub(unit, "elt", 502).read(40117, 1)
+    assert unit.disconnects == 0
+
+
+@pytest.mark.asyncio
+async def test_max_age_renews_the_link(monkeypatch):
+    import apsys.hub as hubmod
+    now = [1000.0]
+    monkeypatch.setattr(hubmod.time, "monotonic", lambda: now[0])
+    unit = _FlakyUnit(lost=0)
+    hub = StorageHub(unit, "elt", 502, max_age=480)
+    await hub.recycle_if_old()
+    assert unit.disconnects == 0
+    now[0] += 480
+    await hub.recycle_if_old()
+    assert unit.disconnects == 1
+    await hub.recycle_if_old()  # timer restarted
+    assert unit.disconnects == 1
+
+    unit = _FlakyUnit(lost=0)
+    hub = StorageHub(unit, "elt", 502)  # max_age 0: never
+    now[0] += 10**6
+    await hub.recycle_if_old()
+    assert unit.disconnects == 0
+
+
+@pytest.mark.asyncio
+async def test_recycle_on_a_real_link():
+    """disconnect() on a modbus_connection unit: the next read reconnects."""
+    words = _image(False)
+    block = ModbusSequentialDataBlock(40001, [words[a] for a in range(40000, 40200)])
+    ctx = ModbusServerContext(devices=ModbusDeviceContext(hr=block), single=True)
+    port = _free_port()
+    server = ModbusTcpServer(ctx, address=("127.0.0.1", port))
+    task = asyncio.create_task(server.serve_forever())
+    await asyncio.sleep(0.3)
+    conn = ModbusConnection(ModbusTcpParams(host="127.0.0.1", port=port))
+    unit = conn.for_unit(1)
+    hub = StorageHub(unit, "127.0.0.1", port)
+    try:
+        assert (await hub.read_block(BLOCK_STORAGE))["soc"] == 63.0
+        assert unit.connected
+        await hub.recycle()
+        assert not unit.connected
+        assert (await hub.read_block(BLOCK_STORAGE))["soc"] == 63.0
+        assert unit.connected
+    finally:
+        await conn.close()
+        await server.shutdown()
+        task.cancel()

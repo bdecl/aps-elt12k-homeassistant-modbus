@@ -33,6 +33,7 @@ class StorageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._unsub_keepalive = None
 
     async def _async_update_data(self) -> dict[str, Any]:
+        await self.hub.recycle_if_old()
         try:
             if not self._common or time.monotonic() - self._common_ts > COMMON_REFRESH:
                 try:

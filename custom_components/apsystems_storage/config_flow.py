@@ -21,9 +21,11 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_KEEPALIVE,
+    CONF_MAX_AGE,
     CONF_PHASES,
     CONF_UNIT,
     DEFAULT_KEEPALIVE,
+    DEFAULT_MAX_AGE,
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_UNIT,
@@ -128,13 +130,14 @@ class StorageConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class StorageOptionsFlow(OptionsFlowWithReload):
-    """Phases, scan interval and keepalive; the entry reloads when they change."""
+    """Phases, scan interval, keepalive and link renewal; the entry reloads when they change."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             user_input[CONF_PHASES] = int(user_input[CONF_PHASES])
             user_input[CONF_SCAN_INTERVAL] = int(user_input[CONF_SCAN_INTERVAL])
             user_input[CONF_KEEPALIVE] = int(user_input[CONF_KEEPALIVE])
+            user_input[CONF_MAX_AGE] = int(user_input.get(CONF_MAX_AGE, DEFAULT_MAX_AGE))
             return self.async_create_entry(data=user_input)
         opts, data = self.config_entry.options, self.config_entry.data
         schema = vol.Schema(
@@ -148,6 +151,9 @@ class StorageOptionsFlow(OptionsFlowWithReload):
                 vol.Required(
                     CONF_KEEPALIVE, default=opts.get(CONF_KEEPALIVE, DEFAULT_KEEPALIVE)
                 ): _box(0, 3600, "s"),
+                vol.Required(
+                    CONF_MAX_AGE, default=opts.get(CONF_MAX_AGE, DEFAULT_MAX_AGE)
+                ): _box(0, 86400, "s"),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

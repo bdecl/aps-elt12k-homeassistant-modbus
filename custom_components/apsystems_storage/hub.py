@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 import logging
+import time
 from typing import TypeVar
 
 from modbus_connection import ModbusError, ModbusExceptionError, ModbusUnit
@@ -25,7 +26,11 @@ RETRIES = 1
 fail the whole poll and make every sensor unavailable for a cycle, which a
 controller reads as a missing battery measurement. modbus_connection does not
 retry by itself. Exception responses are answers and are never retried; a
-repeated write sends the same value, so it is harmless."""
+repeated write sends the same value, so it is harmless.
+
+Before the retry the link is recycled: the ELT's Modbus server sometimes keeps
+the TCP socket open but stops answering, and a request on that socket would
+time out again. A new connection answers at once."""
 
 
 class HubError(Exception):
@@ -44,10 +49,14 @@ class StorageHub:
         port: int,
         timeout: float = TIMEOUT,
         retries: int = RETRIES,
+        max_age: float = 0,
     ) -> None:
         self.host, self.port = host, port
         self._unit = unit
         self._retries = retries
+        self._max_age = max_age
+        self._since = time.monotonic()
+        self.recycles = 0
         # The link's timeout is the largest any holder asks for.
         unit.require_timeout(timeout)
         self.fragmented: dict[str, bool] = {}
@@ -62,8 +71,29 @@ class StorageHub:
                 if attempt == self._retries:
                     # Silence: typical when another client already holds the ELT
                     raise HubError(f"{what}: {err}") from err
-                _LOGGER.debug("%s failed (%s), retrying", what, err)
+                _LOGGER.debug("%s failed (%s), reconnecting and retrying", what, err)
+                await self.recycle()
         raise AssertionError("unreachable")
+
+    async def recycle(self) -> None:
+        """Drop the link; the next request opens a new one.
+
+        The link is shared with every holder of the same host and port, which
+        reconnect on their next request as well."""
+        disconnect = getattr(self._unit, "disconnect", None)
+        if disconnect is not None:
+            try:
+                await disconnect()
+            except ModbusError as err:
+                _LOGGER.debug("Dropping the link failed (%s); it is gone anyway", err)
+        self._since = time.monotonic()
+        self.recycles += 1
+
+    async def recycle_if_old(self) -> None:
+        """Recycle the link once it is older than max_age (0 = never)."""
+        if self._max_age > 0 and time.monotonic() - self._since >= self._max_age:
+            _LOGGER.debug("Link older than %s s, reconnecting", self._max_age)
+            await self.recycle()
 
     async def read(self, address: int, count: int) -> list[int]:
         return list(await self._call(
