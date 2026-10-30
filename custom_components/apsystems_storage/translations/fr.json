@@ -33,7 +33,8 @@
         "data": {
           "scan_interval": "Intervalle d'interrogation (s)",
           "phases": "Phases",
-          "setpoint_keepalive": "Réécrire la dernière consigne de puissance toutes les (s), 0 = désactivé"
+          "setpoint_keepalive": "Réécrire la dernière consigne de puissance toutes les (s), 0 = désactivé",
+          "connection_max_age": "Renouveler la connexion Modbus toutes les (s), 0 = seulement après une requête sans réponse"
         }
       }
     }

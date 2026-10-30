@@ -152,6 +152,9 @@ L2/L3 entities are only created for three-phase units. Single-phase units
   addresses, the integration switches automatically to one request per
   contiguous run of documented registers.
 - The identity block (serial, versions) is read once per hour.
+- When a request gets no answer, the connection is dropped and the request is
+  retried once on a new one: the ELT's Modbus server can keep the socket open
+  and stop answering, and a retry on the same socket would time out too.
 - Values flagged *not implemented* by SunSpec conventions (`0xFFFF`,
   `0x8000`) show as *unknown* instead of absurd numbers.
 
@@ -162,6 +165,7 @@ L2/L3 entities are only created for three-phase units. Single-phase units
 | Polling interval | 5 s | Interval between two reads of the storage block |
 | Phases | detected | 1 or 3 |
 | Setpoint keepalive | 0 (off) | Rewrite the last power setpoint every *n* seconds |
+| Connection renewal | 0 (off) | Also open a new Modbus connection every *n* seconds (e.g. 480), as a precaution if the device's Modbus server freezes. With 0 the connection is only renewed after a request without answer |
 
 The integration only **exposes** the device. Ramps, SoC gates and control
 loops stay in your automations: set `number.<device>_power_setpoint` from
@@ -277,6 +281,16 @@ That is how the ELT works: with Modbus enabled, its internal modes no longer run
 and the battery only follows the power setpoint (register 40183). Load the
 [self-consumption package](#self-consumption-controller-example-package), or write
 the setpoint from your own automation with `number.set_value`.
+
+</details>
+
+<details>
+<summary><b>Sensors go unavailable for a while, then come back</b></summary>
+
+The ELT's Modbus server sometimes stops answering while keeping the connection
+open. The integration then opens a new connection and retries, which normally
+hides it. If it still happens, set *Connection renewal* (for example 480 s) in
+the options so the connection never gets old.
 
 </details>
 

@@ -33,7 +33,8 @@
         "data": {
           "scan_interval": "Polling interval (s)",
           "phases": "Phases",
-          "setpoint_keepalive": "Rewrite the last power setpoint every (s), 0 = off"
+          "setpoint_keepalive": "Rewrite the last power setpoint every (s), 0 = off",
+          "connection_max_age": "Renew the Modbus connection every (s), 0 = only after a failed request"
         }
       }
     }
