@@ -77,8 +77,10 @@ reports.
 - Battery SoC / SoH
 - Charge & discharge power
 - DC bus voltage & current
-- Grid power per phase
-- Daily and total energy counters
+- Grid power per phase (needs the ELT's grid CTs wired)
+- Daily and total energy counters (daily discharge corrected, see below)
+- Optional experimental block: PV energy from the ELT's PV CTs
+- Entity groups: keep only the entities you use
 - Temperatures (battery & PCS)
 - Firmware / version information
 
@@ -129,7 +131,9 @@ Step by step:
    so the single Modbus slot is free.
 4. *Settings → Devices & services → Add integration → APsystems Storage*.
    Enter the IP of the **wired** Modbus interface, port `502`, unit ID `1`.
-5. Confirm the number of phases (three-phase is preselected for the ELT-12).
+5. Confirm the number of phases (three-phase is preselected for the ELT-12)
+   and tick **grid CTs wired** only if the ELT's own grid current
+   transformers are connected.
 
 ### What you get
 
@@ -142,6 +146,64 @@ Step by step:
 
 L2/L3 entities are only created for three-phase units. Single-phase units
 (ELS) get L1 and the totals.
+
+#### Entity groups
+
+Choose in the options which groups of entities exist. A group switched off
+has no entities at all (they are removed, not left unavailable); switching it
+on again recreates them with the same entity IDs. Groups do not change the
+Modbus traffic: the storage block is read in one request whatever is
+selected. Only the experimental group adds a request.
+
+| Group | Entities | Default |
+|---|---|---|
+| Essential *(always)* | SoC, battery power, charge status, power setpoint, SoC reserves, alarms | ✓ |
+| Battery DC | Battery and DC bus voltage, DC current, temperatures, SoH | ✓ |
+| ELT AC output | Active and reactive power per phase, total active power | ✓ |
+| Grid power (grid CTs) | Grid power per phase and total, from the ELT's own grid CTs | only if *grid CTs wired* is ticked |
+| Energy | Daily and total charge and discharge | ✓ |
+| Diagnostic | Ratings, limits, event bitfields, firmware, raw register 40147 | ✓ |
+| Experimental energy | PV energy from the ELT's PV CTs, PV + battery net energy | ✗ |
+
+Entries created before 0.3.0 keep every entity they had (grid power
+included); the experimental group stays off until you select it.
+
+> **Grid CTs.** Registers 40153–40155 report the power seen by the ELT's grid
+> current transformers. If they are not wired they always read 0: leave the
+> group off and use your own meter (Shelly EM/3EM, P1…) instead.
+
+#### Daily discharge energy
+
+On a three-phase ELT-12, register 40147 (*daily discharge energy*) counts
+**one phase only**: three times its value is the real discharge, checked
+against the lifetime counter 40150 and independent meters. The *Daily
+discharge energy* sensor is therefore computed from 40150, as today's
+increase since local midnight; the start-of-day value survives restarts. If
+Home Assistant was not running at midnight, that day starts at the first value
+read. The raw register stays available as a diagnostic entity, disabled by
+default. 40146 (*daily charge energy*) is correct.
+
+All energy counters of the device are measured on the **AC side**: on the unit
+tested, the battery received 96–97 % of the AC charge energy and delivered
+about 90 % AC from its DC discharge.
+
+#### Experimental energy block
+
+Found by analysing the device, **not in the APsystems document**, validated
+on an ELT-12 with firmware 1.1.9.4 / 1.1.0.14 against independent meters.
+Values reset daily (around 00:00:43). Float32, low word first.
+
+| Registers | Content |
+|---|---|
+| 40194 / 40196 / 40198 | PV energy today per phase, measured by the ELT's PV current transformers |
+| 40200 / 40202 / 40204 | PV + discharge − charge today per phase (signed: negative after a night charge from the grid) |
+| 40206–40210, 40218–40222 | Daily charge / discharge, total divided by three per phase (not exposed: the documented counters give the same) |
+
+The device only answers this block when the read **starts at 40184**; a read
+starting inside it gets no answer at all (no Modbus exception). The
+integration reads 40184–40241 in one request, every 60 s by default. If the
+block cannot be read, only its entities become unavailable, the rest keeps
+working, and it is retried every 10 minutes.
 
 ### How it reads the device
 
@@ -166,6 +228,8 @@ L2/L3 entities are only created for three-phase units. Single-phase units
 | Phases | detected | 1 or 3 |
 | Setpoint keepalive | 0 (off) | Rewrite the last power setpoint every *n* seconds |
 | Connection renewal | 0 (off) | Also open a new Modbus connection every *n* seconds (e.g. 480), as a precaution if the device's Modbus server freezes. With 0 the connection is only renewed after a request without answer |
+| Entity groups | see [Entity groups](#entity-groups) | Which groups of entities exist |
+| Experimental block interval | 60 s | Interval between two reads of the experimental energy block |
 
 The integration only **exposes** the device. Ramps, SoC gates and control
 loops stay in your automations: set `number.<device>_power_setpoint` from

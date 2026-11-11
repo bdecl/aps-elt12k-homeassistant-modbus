@@ -12,9 +12,10 @@
       },
       "phases": {
         "title": "Grid connection",
-        "description": "Detected: {model}. Choose the number of AC phases (L2/L3 entities are only created for three-phase units).",
+        "description": "Detected: {model}. Choose the number of AC phases (L2/L3 entities are only created for three-phase units). Tick the box only if the ELT's own grid CTs are connected: without them the grid power registers always read 0.",
         "data": {
-          "phases": "Phases"
+          "phases": "Phases",
+          "grid_ct": "Grid current transformers (CT) are wired to the ELT"
         }
       }
     },
@@ -34,7 +35,9 @@
           "scan_interval": "Polling interval (s)",
           "phases": "Phases",
           "setpoint_keepalive": "Rewrite the last power setpoint every (s), 0 = off",
-          "connection_max_age": "Renew the Modbus connection every (s), 0 = only after a failed request"
+          "connection_max_age": "Renew the Modbus connection every (s), 0 = only after a failed request",
+          "entity_groups": "Entity groups (essential entities always exist)",
+          "detail_interval": "Read the experimental energy block every (s)"
         }
       }
     }
@@ -44,6 +47,16 @@
       "options": {
         "1": "Single-phase",
         "3": "Three-phase"
+      }
+    },
+    "entity_groups": {
+      "options": {
+        "battery_dc": "Battery DC: voltage, current, temperatures, SoH",
+        "elt_ac": "ELT AC output: active and reactive power per phase",
+        "grid_ct": "Grid power from the ELT's grid CTs (needs the CTs wired)",
+        "energy": "Energy: daily and total charge and discharge",
+        "diagnostic": "Diagnostic: ratings, limits, event bits, firmware",
+        "detail_energy": "Experimental: PV energy from the ELT's PV CTs and PV + battery net energy (undocumented registers, one extra request)"
       }
     }
   }

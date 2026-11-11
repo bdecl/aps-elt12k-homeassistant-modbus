@@ -20,6 +20,7 @@ async def async_get_config_entry_diagnostics(
     return {
         "entry": async_redact_data({**entry.as_dict()}, REDACT),
         "fragmented_blocks": c.hub.fragmented,
+        "experimental_block_readable": c.detail_ok,
         "scale_factors_reported": {k: v for k, v in data.items() if k.startswith("sf_")},
         "values": async_redact_data(data, REDACT),
     }

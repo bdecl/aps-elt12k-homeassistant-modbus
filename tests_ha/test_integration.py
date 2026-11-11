@@ -17,12 +17,16 @@ BASE = 40000
 
 
 def _words():
-    w = [0] * 200
+    w = [0] * 260  # up to 40259: covers the experimental block 40184-40241
     serial = b"B05000000999".ljust(32, b"\x00")
     for i in range(16):
         w[52 + i] = int.from_bytes(serial[2 * i:2 * i + 2], "big")
     vals = {81: 630, 83: 98, 73: 34, 74: 12000, 75: 11160, 80: 200, 79: 1000, 86: 3,
-            117: 2205, 114: 0x10000 - 464, 135: 700, 136: 750, 137: 760, 183: 2203}
+            117: 2205, 114: 0x10000 - 464, 135: 700, 136: 750, 137: 760, 183: 2203,
+            147: 1017,  # 40147: one phase of today's discharge
+            150: 0, 151: 50000,  # 40150: total discharge 500.00 kWh
+            194: 36656, 195: 16534,  # 40194: PV L1 4.705 kWh (float, low word first)
+            }
     for a, v in vals.items():
         w[a] = v
     return w
@@ -36,17 +40,18 @@ async def elt():
     server = ModbusTcpServer(ctx, address=("127.0.0.1", port))
     task = asyncio.create_task(server.serve_forever())
     await asyncio.sleep(0.3)
-    yield port, block
+    yield port, server
     await server.shutdown()
     task.cancel()
 
 
-async def _setup(hass: HomeAssistant, port: int, phases: str):
+async def _setup(hass: HomeAssistant, port: int, phases: str, grid_ct: bool = False):
     r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     r = await hass.config_entries.flow.async_configure(
         r["flow_id"], {"host": "127.0.0.1", "port": port, "unit_id": 1})
     assert r["step_id"] == "phases"
-    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"phases": phases})
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"phases": phases, "grid_ct": grid_ct})
     assert r["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
     return r["result"]
@@ -58,7 +63,7 @@ def _eid(hass, key):
 
 
 async def test_three_phase(hass: HomeAssistant, elt):
-    port, block = elt
+    port, _server = elt
     entry = await _setup(hass, port, "3")
     assert entry.title == "ELT-12 (0999)"
     assert hass.states.get(_eid(hass, "soc")).state == "63.0"
@@ -181,3 +186,82 @@ async def test_placeholder_title_is_renamed(hass: HomeAssistant, elt):
     await hass.async_block_till_done()
     assert entry.title == "Batterie garage"
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+def _reg_eid(hass, key, domain="sensor"):
+    return er.async_get(hass).async_get_entity_id(domain, DOMAIN, f"B05000000999_{key}")
+
+
+async def test_groups_of_a_new_entry(hass: HomeAssistant, elt):
+    """New entries: grid CT entities only when the user says they are wired,
+    experimental block off, the raw 40147 sensor disabled by default."""
+    port, _ = elt
+    entry = await _setup(hass, port, "3")
+    assert _reg_eid(hass, "grid_power") is None
+    assert _reg_eid(hass, "pv_energy_today") is None
+    assert _reg_eid(hass, "soc") and _reg_eid(hass, "daily_discharge_energy")
+    raw = er.async_get(hass).async_get(_reg_eid(hass, "daily_discharge_energy_raw"))
+    assert raw.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_grid_ct_wired(hass: HomeAssistant, elt):
+    port, _ = elt
+    await _setup(hass, port, "3", grid_ct=True)
+    assert _reg_eid(hass, "grid_power") is not None
+
+
+async def test_entry_without_groups_keeps_everything(hass: HomeAssistant, elt):
+    """Entries made before entity groups existed keep the grid entities."""
+    port, _ = elt
+    entry = await _setup(hass, port, "3")
+    hass.config_entries.async_update_entry(entry, options={})
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert _reg_eid(hass, "grid_power") is not None
+    assert _reg_eid(hass, "pv_energy_today") is None
+
+
+async def test_deselected_group_is_removed(hass: HomeAssistant, elt):
+    port, _ = elt
+    entry = await _setup(hass, port, "3", grid_ct=True)
+    assert _reg_eid(hass, "battery_voltage") is not None
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {
+        "scan_interval": 5, "phases": "3", "setpoint_keepalive": 0, "connection_max_age": 0,
+        "entity_groups": ["elt_ac", "energy", "diagnostic"], "detail_interval": 60,
+    })
+    assert r["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    assert _reg_eid(hass, "battery_voltage") is None  # battery DC group off
+    assert _reg_eid(hass, "grid_power") is None
+    assert hass.states.get(_reg_eid(hass, "soc")).state == "63.0"  # essential stays
+    assert _reg_eid(hass, "set_power", "number") is not None
+
+
+async def test_daily_discharge_from_total(hass: HomeAssistant, elt):
+    """40147 counts one phase only: today's discharge comes from 40150."""
+    port, server = elt
+    entry = await _setup(hass, port, "3")
+    eid = _reg_eid(hass, "daily_discharge_energy")
+    assert hass.states.get(eid).state == "0.0"
+    # +30.50 kWh discharged (low word of 40150-40151)
+    await server.context.async_setValues(1, 6, BASE + 151, [50000 + 3050])
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    assert float(hass.states.get(eid).state) == 30.5
+
+
+async def test_experimental_block(hass: HomeAssistant, elt):
+    port, _ = elt
+    entry = await _setup(hass, port, "3")
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    await hass.config_entries.options.async_configure(r["flow_id"], {
+        "scan_interval": 5, "phases": "3", "setpoint_keepalive": 0, "connection_max_age": 0,
+        "entity_groups": ["battery_dc", "elt_ac", "energy", "diagnostic", "detail_energy"],
+        "detail_interval": 60,
+    })
+    await hass.async_block_till_done()
+    assert entry.runtime_data.detail_ok is True
+    assert float(hass.states.get(_reg_eid(hass, "pv_energy_today")).state) == 4.705
+    assert hass.states.get(_reg_eid(hass, "net_energy_today")).state == "0.0"

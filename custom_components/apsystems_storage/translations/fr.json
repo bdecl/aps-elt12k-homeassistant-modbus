@@ -12,9 +12,10 @@
       },
       "phases": {
         "title": "Raccordement réseau",
-        "description": "Détecté : {model}. Choisissez le nombre de phases AC (les entités L2/L3 ne sont créées qu'en triphasé).",
+        "description": "Détecté : {model}. Choisissez le nombre de phases AC (les entités L2/L3 ne sont créées qu'en triphasé). Cochez uniquement si les CT réseau de l'ELT sont branchés : sans eux, les registres de puissance réseau valent toujours 0.",
         "data": {
-          "phases": "Phases"
+          "phases": "Phases",
+          "grid_ct": "Les transformateurs de courant (CT) réseau sont branchés sur l'ELT"
         }
       }
     },
@@ -34,7 +35,9 @@
           "scan_interval": "Intervalle d'interrogation (s)",
           "phases": "Phases",
           "setpoint_keepalive": "Réécrire la dernière consigne de puissance toutes les (s), 0 = désactivé",
-          "connection_max_age": "Renouveler la connexion Modbus toutes les (s), 0 = seulement après une requête sans réponse"
+          "connection_max_age": "Renouveler la connexion Modbus toutes les (s), 0 = seulement après une requête sans réponse",
+          "entity_groups": "Groupes d'entités (les entités essentielles existent toujours)",
+          "detail_interval": "Lire le bloc d'énergies expérimental toutes les (s)"
         }
       }
     }
@@ -44,6 +47,16 @@
       "options": {
         "1": "Monophasé",
         "3": "Triphasé"
+      }
+    },
+    "entity_groups": {
+      "options": {
+        "battery_dc": "Batterie DC : tension, courant, températures, SoH",
+        "elt_ac": "Sortie AC de l'ELT : puissance active et réactive par phase",
+        "grid_ct": "Puissance réseau des CT réseau de l'ELT (CT branchés requis)",
+        "energy": "Énergies : charge et décharge du jour et totales",
+        "diagnostic": "Diagnostic : caractéristiques, limites, bits d'événements, firmware",
+        "detail_energy": "Expérimental : énergie PV des CT PV de l'ELT et énergie nette PV + batterie (registres non documentés, une requête de plus)"
       }
     }
   }
