@@ -16,8 +16,9 @@
 #
 # Notes
 #   - Battery power: > 0 discharge, < 0 charge.
-#   - Grid power needs the meter wired to the ELT; without it, remove it or
-#     use your own meter entity (Shelly EM/3EM...).
+#   - Grid power needs the ELT's own grid CTs wired and the "Grid power"
+#     entity group selected (installation step or integration options).
+#     Without them, remove it or use your own meter entity (Shelly EM/3EM...).
 #   - Graphs are split by unit on purpose: a cell or pack voltage next to a
 #     power in watts would look like a flat line.
 #############################################################################

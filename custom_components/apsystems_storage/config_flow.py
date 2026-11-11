@@ -20,16 +20,25 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_DETAIL_INTERVAL,
+    CONF_GRID_CT,
+    CONF_GROUPS,
     CONF_KEEPALIVE,
     CONF_MAX_AGE,
     CONF_PHASES,
     CONF_UNIT,
+    DEFAULT_DETAIL_INTERVAL,
+    DEFAULT_GROUPS,
     DEFAULT_KEEPALIVE,
     DEFAULT_MAX_AGE,
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_UNIT,
     DOMAIN,
+    GROUP_GRID,
+    GROUPS,
+    LEGACY_GROUPS,
+    MIN_DETAIL_INTERVAL,
     MIN_SCAN_INTERVAL,
 )
 from .hub import HubError, IllegalAddress, StorageHub
@@ -44,6 +53,13 @@ def _box(minimum: int, maximum: int, unit: str | None = None) -> selector.Number
         config["unit_of_measurement"] = unit
     return selector.NumberSelector(config)
 
+
+GROUP_SELECTOR = selector.SelectSelector(
+    selector.SelectSelectorConfig(
+        options=GROUPS, multiple=True, translation_key="entity_groups",
+        mode=selector.SelectSelectorMode.LIST,
+    )
+)
 
 PHASE_SELECTOR = selector.SelectSelector(
     selector.SelectSelectorConfig(
@@ -115,9 +131,17 @@ class StorageConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_phases(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             self._data[CONF_PHASES] = int(user_input[CONF_PHASES])
-            return self.async_create_entry(title=self._title, data=self._data)
+            groups = list(DEFAULT_GROUPS)
+            if user_input.get(CONF_GRID_CT):
+                groups.insert(2, GROUP_GRID)
+            return self.async_create_entry(
+                title=self._title, data=self._data, options={CONF_GROUPS: groups}
+            )
         schema = vol.Schema(
-            {vol.Required(CONF_PHASES, default=str(self._default_phases)): PHASE_SELECTOR}
+            {
+                vol.Required(CONF_PHASES, default=str(self._default_phases)): PHASE_SELECTOR,
+                vol.Required(CONF_GRID_CT, default=False): selector.BooleanSelector(),
+            }
         )
         return self.async_show_form(
             step_id="phases", data_schema=schema, description_placeholders={"model": self._title}
@@ -130,7 +154,8 @@ class StorageConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class StorageOptionsFlow(OptionsFlowWithReload):
-    """Phases, scan interval, keepalive and link renewal; the entry reloads when they change."""
+    """Phases, scan interval, keepalive, link renewal and entity groups; the
+    entry reloads when they change."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
@@ -138,6 +163,10 @@ class StorageOptionsFlow(OptionsFlowWithReload):
             user_input[CONF_SCAN_INTERVAL] = int(user_input[CONF_SCAN_INTERVAL])
             user_input[CONF_KEEPALIVE] = int(user_input[CONF_KEEPALIVE])
             user_input[CONF_MAX_AGE] = int(user_input.get(CONF_MAX_AGE, DEFAULT_MAX_AGE))
+            user_input[CONF_DETAIL_INTERVAL] = int(
+                user_input.get(CONF_DETAIL_INTERVAL, DEFAULT_DETAIL_INTERVAL)
+            )
+            user_input[CONF_GROUPS] = [g for g in GROUPS if g in user_input.get(CONF_GROUPS, [])]
             return self.async_create_entry(data=user_input)
         opts, data = self.config_entry.options, self.config_entry.data
         schema = vol.Schema(
@@ -154,6 +183,13 @@ class StorageOptionsFlow(OptionsFlowWithReload):
                 vol.Required(
                     CONF_MAX_AGE, default=opts.get(CONF_MAX_AGE, DEFAULT_MAX_AGE)
                 ): _box(0, 86400, "s"),
+                vol.Required(
+                    CONF_GROUPS, default=opts.get(CONF_GROUPS, LEGACY_GROUPS)
+                ): GROUP_SELECTOR,
+                vol.Required(
+                    CONF_DETAIL_INTERVAL,
+                    default=opts.get(CONF_DETAIL_INTERVAL, DEFAULT_DETAIL_INTERVAL),
+                ): _box(MIN_DETAIL_INTERVAL, 3600, "s"),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
