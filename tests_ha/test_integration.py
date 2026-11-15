@@ -243,6 +243,11 @@ async def test_daily_discharge_from_total(hass: HomeAssistant, elt):
     """40147 counts one phase only: today's discharge comes from 40150."""
     port, server = elt
     entry = await _setup(hass, port, "3")
+    # Energy writes at most every 60 s by default: follow every poll here.
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, "update_every_energy": 0})
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
     eid = _reg_eid(hass, "daily_discharge_energy")
     assert hass.states.get(eid).state == "0.0"
     # +30.50 kWh discharged (low word of 40150-40151)
@@ -265,3 +270,30 @@ async def test_experimental_block(hass: HomeAssistant, elt):
     assert entry.runtime_data.detail_ok is True
     assert float(hass.states.get(_reg_eid(hass, "pv_energy_today")).state) == 4.705
     assert hass.states.get(_reg_eid(hass, "net_energy_today")).state == "0.0"
+
+
+async def test_update_every_throttles_state_writes(hass: HomeAssistant, elt):
+    """A slow group writes its state at most once per interval, while the
+    essential entities follow every poll (no extra Modbus request)."""
+    port, server = elt
+    entry = await _setup(hass, port, "3")
+    volt, soc = _reg_eid(hass, "battery_voltage"), _reg_eid(hass, "soc")
+    before = hass.states.get(volt).state
+    await server.context.async_setValues(1, 6, BASE + 134, [520])  # 52.0 V
+    await server.context.async_setValues(1, 6, BASE + 81, [700])  # SoC 70 %
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(soc).state == "70.0"  # essential: written at once
+    assert hass.states.get(volt).state == before  # battery DC: 30 s by default
+
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    await hass.config_entries.options.async_configure(r["flow_id"], {
+        "scan_interval": 5, "phases": "3", "setpoint_keepalive": 0, "connection_max_age": 0,
+        "entity_groups": ["battery_dc", "elt_ac", "energy", "diagnostic"],
+        "detail_interval": 60, "update_every_battery_dc": 0,
+    })
+    await hass.async_block_till_done()
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(volt).state == "52.0"  # 0 = every poll
+    assert entry.options["update_every_energy"] == 60  # untouched default kept

@@ -37,7 +37,12 @@
           "setpoint_keepalive": "Réécrire la dernière consigne de puissance toutes les (s), 0 = désactivé",
           "connection_max_age": "Renouveler la connexion Modbus toutes les (s), 0 = seulement après une requête sans réponse",
           "entity_groups": "Groupes d'entités (les entités essentielles existent toujours)",
-          "detail_interval": "Lire le bloc d'énergies expérimental toutes les (s)"
+          "detail_interval": "Lire le bloc d'énergies expérimental toutes les (s)",
+          "update_every_battery_dc": "Mettre à jour « Batterie DC » au plus toutes les (s), 0 = à chaque lecture",
+          "update_every_elt_ac": "Mettre à jour « Sortie AC de l'ELT » au plus toutes les (s), 0 = à chaque lecture",
+          "update_every_grid_ct": "Mettre à jour « Puissance réseau (CT réseau) » au plus toutes les (s), 0 = à chaque lecture",
+          "update_every_energy": "Mettre à jour « Énergies » au plus toutes les (s), 0 = à chaque lecture",
+          "update_every_diagnostic": "Mettre à jour « Diagnostic » au plus toutes les (s), 0 = à chaque lecture"
         }
       }
     }

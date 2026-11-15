@@ -24,12 +24,14 @@ from .const import (
     CONF_GRID_CT,
     CONF_GROUPS,
     CONF_KEEPALIVE,
+    CONF_UPDATE_EVERY,
     CONF_MAX_AGE,
     CONF_PHASES,
     CONF_UNIT,
     DEFAULT_DETAIL_INTERVAL,
     DEFAULT_GROUPS,
     DEFAULT_KEEPALIVE,
+    DEFAULT_UPDATE_EVERY,
     DEFAULT_MAX_AGE,
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
@@ -40,6 +42,7 @@ from .const import (
     LEGACY_GROUPS,
     MIN_DETAIL_INTERVAL,
     MIN_SCAN_INTERVAL,
+    THROTTLED_GROUPS,
 )
 from .hub import HubError, IllegalAddress, StorageHub
 from .registers import REG_BY_KEY, decode, detect_model, entry_title
@@ -167,6 +170,9 @@ class StorageOptionsFlow(OptionsFlowWithReload):
                 user_input.get(CONF_DETAIL_INTERVAL, DEFAULT_DETAIL_INTERVAL)
             )
             user_input[CONF_GROUPS] = [g for g in GROUPS if g in user_input.get(CONF_GROUPS, [])]
+            for group in THROTTLED_GROUPS:
+                key = CONF_UPDATE_EVERY.format(group)
+                user_input[key] = int(user_input.get(key, DEFAULT_UPDATE_EVERY[group]))
             return self.async_create_entry(data=user_input)
         opts, data = self.config_entry.options, self.config_entry.data
         schema = vol.Schema(
@@ -190,6 +196,13 @@ class StorageOptionsFlow(OptionsFlowWithReload):
                     CONF_DETAIL_INTERVAL,
                     default=opts.get(CONF_DETAIL_INTERVAL, DEFAULT_DETAIL_INTERVAL),
                 ): _box(MIN_DETAIL_INTERVAL, 3600, "s"),
+                **{
+                    vol.Required(
+                        CONF_UPDATE_EVERY.format(g),
+                        default=opts.get(CONF_UPDATE_EVERY.format(g), DEFAULT_UPDATE_EVERY[g]),
+                    ): _box(0, 3600, "s")
+                    for g in THROTTLED_GROUPS
+                },
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

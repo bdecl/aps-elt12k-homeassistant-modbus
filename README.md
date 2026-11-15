@@ -157,16 +157,35 @@ selected. Only the experimental group adds a request.
 
 | Group | Entities | Default |
 |---|---|---|
-| Essential *(always)* | SoC, battery power, charge status, power setpoint, SoC reserves, alarms | ✓ |
+| Essential *(always)* | SoC, battery power, charge status, power setpoint, SoC reserves, current charge/discharge limits, alarms | ✓ |
 | Battery DC | Battery and DC bus voltage, DC current, temperatures, SoH | ✓ |
 | ELT AC output | Active and reactive power per phase, total active power | ✓ |
 | Grid power (grid CTs) | Grid power per phase and total, from the ELT's own grid CTs | only if *grid CTs wired* is ticked |
 | Energy | Daily and total charge and discharge | ✓ |
-| Diagnostic | Ratings, limits, event bitfields, firmware, raw register 40147 | ✓ |
+| Diagnostic | Ratings, SoC limits, event bitfields, firmware, raw register 40147 | ✓ |
 | Experimental energy | PV energy from the ELT's PV CTs, PV + battery net energy | ✗ |
 
 Entries created before 0.3.0 keep every entity they had (grid power
 included); the experimental group stays off until you select it.
+
+#### Update interval per group
+
+The device is read in one request every scan interval, but each group only
+writes its state at most once per its own interval: far fewer rows in the
+recorder database for values that move a little at every poll (voltages,
+currents, reactive power, temperatures), and no extra Modbus request. A
+change of availability is always written at once. Set 0 for every poll.
+
+| Group | Default |
+|---|---|
+| Essential (control) | every poll, not configurable |
+| ELT AC output, grid power | 10 s |
+| Battery DC | 30 s |
+| Energy | 60 s |
+| Diagnostic | 300 s |
+| Experimental energy | follows its own read interval (60 s) |
+
+These defaults also apply to entries created before 0.3.0.
 
 > **Grid CTs.** Registers 40153–40155 report the power seen by the ELT's grid
 > current transformers. If they are not wired they always read 0: leave the
@@ -200,8 +219,13 @@ Values reset daily (around 00:00:43). Float32, low word first.
 | 40206–40210, 40218–40222 | Daily charge / discharge, total divided by three per phase (not exposed: the documented counters give the same) |
 
 The device only answers this block when the read **starts at 40184**; a read
-starting inside it gets no answer at all (no Modbus exception). The
-integration reads 40184–40241 in one request, every 60 s by default. If the
+starting inside it gets no answer at all (no Modbus exception).
+
+The net energy (40200–40204) does not always deduct a charge from the grid:
+on the unit tested, an evening charge from the grid was sometimes left out
+while a night charge was deducted. Treat it as indicative.
+
+The integration reads 40184–40241 in one request, every 60 s by default. If the
 block cannot be read, only its entities become unavailable, the rest keeps
 working, and it is retried every 10 minutes.
 
@@ -230,6 +254,7 @@ working, and it is retried every 10 minutes.
 | Connection renewal | 0 (off) | Also open a new Modbus connection every *n* seconds (e.g. 480), as a precaution if the device's Modbus server freezes. With 0 the connection is only renewed after a request without answer |
 | Entity groups | see [Entity groups](#entity-groups) | Which groups of entities exist |
 | Experimental block interval | 60 s | Interval between two reads of the experimental energy block |
+| Update interval per group | see [Update interval per group](#update-interval-per-group) | Minimum time between two state writes of a group |
 
 The integration only **exposes** the device. Ramps, SoC gates and control
 loops stay in your automations: set `number.<device>_power_setpoint` from

@@ -37,7 +37,12 @@
           "setpoint_keepalive": "Rewrite the last power setpoint every (s), 0 = off",
           "connection_max_age": "Renew the Modbus connection every (s), 0 = only after a failed request",
           "entity_groups": "Entity groups (essential entities always exist)",
-          "detail_interval": "Read the experimental energy block every (s)"
+          "detail_interval": "Read the experimental energy block every (s)",
+          "update_every_battery_dc": "Update Battery DC at most every (s), 0 = each poll",
+          "update_every_elt_ac": "Update ELT AC output at most every (s), 0 = each poll",
+          "update_every_grid_ct": "Update Grid power (grid CTs) at most every (s), 0 = each poll",
+          "update_every_energy": "Update Energy at most every (s), 0 = each poll",
+          "update_every_diagnostic": "Update Diagnostic at most every (s), 0 = each poll"
         }
       }
     }

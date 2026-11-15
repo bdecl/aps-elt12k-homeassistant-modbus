@@ -30,6 +30,21 @@ DEFAULT_GROUPS = [GROUP_DC, GROUP_AC, GROUP_ENERGY, GROUP_DIAG]
 # Entries made before 0.3.0 keep every entity they had.
 LEGACY_GROUPS = [GROUP_DC, GROUP_AC, GROUP_GRID, GROUP_ENERGY, GROUP_DIAG]
 
+# Minimum seconds between two state writes per group. The device is still
+# read in one request every scan interval; slow groups only write their state
+# less often, which keeps the recorder database small. 0 = every poll. The
+# essential group (control) and the experimental block (own read interval)
+# always follow their reads. A change of availability is written at once.
+CONF_UPDATE_EVERY = "update_every_{}"
+THROTTLED_GROUPS = [GROUP_DC, GROUP_AC, GROUP_GRID, GROUP_ENERGY, GROUP_DIAG]
+DEFAULT_UPDATE_EVERY = {
+    GROUP_DC: 30,
+    GROUP_AC: 10,
+    GROUP_GRID: 10,
+    GROUP_ENERGY: 60,
+    GROUP_DIAG: 300,
+}
+
 DEFAULT_PORT = 502
 DEFAULT_UNIT = 1
 DEFAULT_SCAN_INTERVAL = 5  # s, one request per cycle when the block read works
