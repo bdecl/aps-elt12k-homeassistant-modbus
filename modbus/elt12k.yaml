@@ -268,6 +268,9 @@ modbus:
     unit_of_measurement: kWh
     device_class: energy
     state_class: total_increasing
+  # On a three-phase ELT-12 this register counts ONE phase only (x3 = real
+  # daily discharge). Prefer a utility_meter (cycle: daily) on
+  # "ELT Total Discharge Energy" (40150), which is correct.
   - name: ELT Daily Discharge Energy
     unique_id: aps_elt_daily_discharge_kwh
     slave: 1
@@ -304,6 +307,7 @@ modbus:
     unit_of_measurement: kWh
     device_class: energy
     state_class: total_increasing
+  # Grid power from the ELT's own grid CTs: always 0 if they are not wired.
   - name: ELT Grid Power A
     unique_id: aps_elt_grid_power_a
     slave: 1

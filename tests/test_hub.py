@@ -185,3 +185,46 @@ async def test_recycle_on_a_real_link():
         await conn.close()
         await server.shutdown()
         task.cancel()
+
+
+class _WindowUnit:
+    """Answers only reads that start at an allowed address, silent otherwise:
+    the ELT's behaviour on its undocumented vendor block."""
+
+    def __init__(self, words: dict[int, int], starts: set[int]):
+        self.words, self.starts, self.reads = words, starts, []
+
+    def require_timeout(self, seconds):
+        pass
+
+    async def disconnect(self):
+        pass
+
+    async def read_holding_registers(self, address, count):
+        from modbus_connection import ModbusTimeoutError
+        self.reads.append((address, count))
+        if address not in self.starts:
+            raise ModbusTimeoutError("no answer")
+        return [self.words.get(address + i, 0) for i in range(count)]
+
+
+@pytest.mark.asyncio
+async def test_detail_block_read_whole_from_its_start():
+    from apsys.registers import BLOCK_DETAIL
+    words = {40194: 36656, 40195: 16534}  # 4.705 kWh, low word first
+    unit = _WindowUnit(words, {40184})
+    data = await StorageHub(unit, "elt", 502).read_block(BLOCK_DETAIL)
+    assert data["pv_energy_today_a"] == 4.705
+    assert unit.reads == [(40184, 58)]
+
+
+@pytest.mark.asyncio
+async def test_detail_block_never_split():
+    """A read starting inside the block gets no answer: no per-run fallback,
+    the error goes to the caller (the coordinator keeps the poll alive)."""
+    from apsys.hub import HubError
+    from apsys.registers import BLOCK_DETAIL
+    unit = _WindowUnit({}, set())
+    with pytest.raises(HubError):
+        await StorageHub(unit, "elt", 502).read_block(BLOCK_DETAIL)
+    assert {a for a, _ in unit.reads} == {40184}

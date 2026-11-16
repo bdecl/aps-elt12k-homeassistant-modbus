@@ -9,18 +9,21 @@ This module has no Home Assistant dependency so it can be unit-tested alone.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
+import struct
 from typing import Any
 
 # Data types
 U16 = "uint16"
 I16 = "int16"
 U32 = "uint32"
+F32WS = "float32_ws"  # IEEE float, low word first (undocumented vendor block)
 STR = "string"
 ENUM16 = "enum16"
 BIT32 = "bitfield32"
 SUNSSF = "sunssf"
 
-_COUNT = {U16: 1, I16: 1, ENUM16: 1, SUNSSF: 1, U32: 2, BIT32: 2}
+_COUNT = {U16: 1, I16: 1, ENUM16: 1, SUNSSF: 1, U32: 2, BIT32: 2, F32WS: 2}
 
 
 @dataclass(frozen=True)
@@ -89,7 +92,9 @@ STORAGE: tuple[Reg, ...] = (
     Reg("reactive_power_b", 40139, I16),
     Reg("reactive_power_c", 40140, I16),
     Reg("daily_charge_energy", 40146, U16, scale=0.01),
-    Reg("daily_discharge_energy", 40147, U16, scale=0.01),
+    # Counts one phase only on a three-phase ELT-12 (x3 = real value, checked
+    # against 40150). The "daily_discharge_energy" sensor is derived from 40150.
+    Reg("daily_discharge_energy_raw", 40147, U16, scale=0.01),
     Reg("total_charge_energy", 40148, U32, scale=0.01),
     Reg("total_discharge_energy", 40150, U32, scale=0.01),
     Reg("sf_energy", 40152, SUNSSF),
@@ -105,7 +110,25 @@ STORAGE: tuple[Reg, ...] = (
     Reg("set_power", 40183, I16, writable=True),
 )
 
-REG_BY_KEY: dict[str, Reg] = {r.key: r for r in COMMON + STORAGE}
+# --- Vendor block found by analysis, not in the PCS document ---------------
+# Float32, low word first, per phase, reset by the device each day around
+# 00:00:43. Validated on an ELT-12 (firmware 1.1.9.4 / 1.1.0.14) against
+# independent meters. The device does not answer a read that starts inside
+# this block (no exception, just silence), so it is always read whole from
+# 40184. 40184-40192, 40212-40216 and 40224-40228 read 0; 40230-40240 hold
+# small values not identified yet.
+DETAIL: tuple[Reg, ...] = (
+    # Energy measured by the ELT's PV current transformers
+    Reg("pv_energy_today_a", 40194, F32WS),
+    Reg("pv_energy_today_b", 40196, F32WS),
+    Reg("pv_energy_today_c", 40198, F32WS),
+    # PV + discharge - charge: what PV and battery together delivered (signed)
+    Reg("net_energy_today_a", 40200, F32WS),
+    Reg("net_energy_today_b", 40202, F32WS),
+    Reg("net_energy_today_c", 40204, F32WS),
+)
+
+REG_BY_KEY: dict[str, Reg] = {r.key: r for r in COMMON + STORAGE + DETAIL}
 
 CHARGE_STATUS = {
     1: "off",
@@ -143,14 +166,18 @@ class Block:
 
     name: str
     regs: tuple[Reg, ...]
+    first: int | None = None  # force the window start (device-imposed)
+    last: int | None = None  # force the window end, inclusive
+    splittable: bool = True  # False: never fall back to per-run reads
 
     @property
     def start(self) -> int:
-        return min(r.address for r in self.regs)
+        return self.first if self.first is not None else min(r.address for r in self.regs)
 
     @property
     def count(self) -> int:
-        return max(r.end for r in self.regs) - self.start + 1
+        end = self.last if self.last is not None else max(r.end for r in self.regs)
+        return end - self.start + 1
 
     def runs(self) -> list[tuple[int, int]]:
         """Contiguous runs of documented registers, used as a fallback when
@@ -166,6 +193,8 @@ class Block:
 
 BLOCK_COMMON = Block("common", COMMON)  # 40004-40068, 65 registers
 BLOCK_STORAGE = Block("storage", STORAGE)  # 40073-40183, 111 registers (< 125)
+# 40184-40241, 58 registers: the window validated on a live ELT-12.
+BLOCK_DETAIL = Block("detail", DETAIL, first=40184, last=40241, splittable=False)
 
 
 def _s16(v: int) -> int:
@@ -196,6 +225,11 @@ def decode(reg: Reg, words: dict[int, int]) -> Any:
         val = (raw[0] << 16) | raw[1]
         if val == 0xFFFFFFFF:
             return None
+    elif reg.dtype == F32WS:
+        val = struct.unpack(">f", struct.pack(">HH", raw[1], raw[0]))[0]
+        if not math.isfinite(val):
+            return None
+        return round(val * reg.scale, 3)
     else:  # pragma: no cover
         raise ValueError(reg.dtype)
 

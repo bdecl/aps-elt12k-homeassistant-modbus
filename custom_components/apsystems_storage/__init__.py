@@ -7,9 +7,11 @@ from homeassistant.components.modbus import async_get_unit
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from .const import CONF_MAX_AGE, CONF_UNIT, DEFAULT_MAX_AGE, DEFAULT_SCAN_INTERVAL, PLATFORMS
 from .coordinator import StorageCoordinator
+from .entity import key_enabled
 from .hub import StorageHub
 from .registers import entry_title, is_placeholder_title
 
@@ -35,6 +37,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: StorageConfigEntry) -> b
             entry, title=entry_title(serial, (coordinator.data or {}).get("model"))
         )
     coordinator.start_keepalive()
+    _remove_deselected(hass, entry)
     # Options changes reload through OptionsFlowWithReload: no update listener.
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
@@ -47,3 +50,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: StorageConfigEntry) -> 
         # frees the ELT's single Modbus slot for other tools.
         entry.runtime_data.stop_keepalive()
     return ok
+
+
+def _remove_deselected(hass: HomeAssistant, entry: StorageConfigEntry) -> None:
+    """Drop the registry entries of groups the user switched off, so they do
+    not linger as unavailable entities. Selecting the group again recreates
+    them with the same entity IDs."""
+    reg = er.async_get(hass)
+    prefix = f"{entry.unique_id}_"
+    for ent in er.async_entries_for_config_entry(reg, entry.entry_id):
+        key = ent.unique_id.removeprefix(prefix)
+        if not key_enabled(entry, key):
+            reg.async_remove(ent.entity_id)

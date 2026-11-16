@@ -109,8 +109,15 @@ class StorageHub:
 
     async def read_block(self, block: Block) -> dict[str, object]:
         """Read a block in one request, or run by run if the device rejects
-        the full window. Undocumented addresses that fail are skipped."""
+        the full window. Undocumented addresses that fail are skipped.
+
+        A block marked not splittable is only ever read whole: the device does
+        not answer a read starting inside it, and errors are raised."""
         words: dict[int, int] = {}
+        if not block.splittable:
+            regs = await self.read(block.start, block.count)
+            words = {block.start + i: w for i, w in enumerate(regs)}
+            return {reg.key: decode(reg, words) for reg in block.regs}
         if not self.fragmented.get(block.name):
             try:
                 regs = await self.read(block.start, block.count)

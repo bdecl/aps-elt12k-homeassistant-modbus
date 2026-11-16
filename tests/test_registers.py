@@ -1,5 +1,7 @@
+import struct
+
 from apsys.registers import (
-    BLOCK_COMMON, BLOCK_STORAGE, REG_BY_KEY, active_bits, decode, detect_model, encode, entry_title,
+    BLOCK_COMMON, BLOCK_DETAIL, BLOCK_STORAGE, REG_BY_KEY, active_bits, decode, detect_model, encode, entry_title,
     is_placeholder_title,
     BATTERY_EVENT_BITS,
 )
@@ -71,3 +73,31 @@ def test_placeholder_titles_only():
     assert not is_placeholder_title("ELT-12 (1234)", "B05000001234")
     assert not is_placeholder_title("Batterie garage", "B05000001234")
     assert not is_placeholder_title("Model (9999)", "B05000001234")  # another serial
+
+
+def _f32ws(value):
+    hi, lo = struct.unpack(">HH", struct.pack(">f", value))
+    return [lo, hi]  # low word first, as the ELT sends it
+
+
+def test_detail_block_window():
+    # The ELT only answers this block when the read starts at 40184.
+    assert BLOCK_DETAIL.start == 40184
+    assert BLOCK_DETAIL.count == 58  # 40184-40241, the window validated live
+    assert not BLOCK_DETAIL.splittable
+    assert BLOCK_STORAGE.splittable
+
+
+def test_float_low_word_first():
+    # Words read on a live ELT-12 at 23:59: 4.705 kWh PV on L1
+    assert decode(REG_BY_KEY["pv_energy_today_a"],
+                  words_for("pv_energy_today_a", [36656, 16534])) == 4.705
+    assert decode(REG_BY_KEY["net_energy_today_a"],
+                  words_for("net_energy_today_a", _f32ws(-25.37))) == -25.37
+    nan = _f32ws(float("nan"))
+    assert decode(REG_BY_KEY["pv_energy_today_b"], words_for("pv_energy_today_b", nan)) is None
+
+
+def test_raw_daily_discharge_renamed():
+    assert REG_BY_KEY["daily_discharge_energy_raw"].address == 40147
+    assert "daily_discharge_energy" not in REG_BY_KEY  # derived sensor, not a register

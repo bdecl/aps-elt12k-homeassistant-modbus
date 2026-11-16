@@ -38,7 +38,7 @@ def _entity_ids(node):
 
 async def test_dashboard_entities_exist(hass: HomeAssistant, device):  # noqa: F811
     port, _server = device
-    await _setup(hass, port, "3")
+    await _setup(hass, port, "3", grid_ct=True)  # the dashboard shows grid power
     await _load_package(hass)
     config = parse_yaml(DASHBOARD.read_text().replace("elt_12_xxxx", "elt_12_0999"))
     ids = sorted(set(_entity_ids(config["views"])))
