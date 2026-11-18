@@ -15,8 +15,8 @@
 [![License](https://img.shields.io/github/license/bdecl/aps-elt12k-homeassistant-modbus)](LICENSE)
 
 This repository connects the **APsystems ELT-12K** energy storage system
-(and, experimentally, the **ELS-5K / ELS-11.4**, which share the same Modbus
-protocol) to **Home Assistant** over Modbus TCP.
+(and, experimentally, the **ELS-5K / ELS-11.4** and **LSA-6 / LSH-6**, which
+share the same Modbus protocol) to **Home Assistant** over Modbus TCP.
 
 Two ways to use it:
 
@@ -31,7 +31,8 @@ Two ways to use it:
 ## Quick start
 
 1. **On the ELT**, enable Modbus TCP and give the **wired** Ethernet interface a
-   fixed address. Modbus is not served over Wi-Fi.
+   fixed address. Modbus is not served over Wi-Fi. See
+   [Enabling Modbus](#enabling-modbus).
 2. **Install** through HACS, then restart Home Assistant (2026.10 or newer).
 
    [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=bdecl&repository=aps-elt12k-homeassistant-modbus&category=integration)
@@ -61,6 +62,7 @@ keeps the last word on charge and discharge limits, over CAN.
 |---|---|---|
 | **ELT-12K** (three-phase) | ✅ Tested | Option A and Option B |
 | **ELS-5K / ELS-11.4** (single-phase) | ⚠️ Experimental, untested | Same Modbus protocol; L1 and totals only. Reports welcome |
+| **LSA-6 / LSH-6** (single-phase) | ⚠️ Experimental, untested | Listed in the Modbus protocol Rev1.1 (serials B0501… / B0502…); TCP through the communication stick. Reports welcome |
 | Wired Ethernet, Modbus TCP | ✅ Required | Port 502 |
 | Wi-Fi interface | ❌ No Modbus | Cloud and EMA only |
 | RS485 / RS232 serial | ❌ Not supported | TCP only for now |
@@ -105,6 +107,18 @@ does not answer.
 
 Give that interface a fixed address (DHCP reservation or static IP) so the
 `host:` in the hub definition keeps working after a reboot.
+
+### Enabling Modbus
+
+Modbus is switched on from the installer tools (Modbus protocol Rev1.1):
+
+- **EMA Manager** (app): *Third-party platform – Modbus* → on, *Communication*
+  `TCP`, *Slave address* `1`.
+- **EMA web**: *APEMS Remote Control* → *Third-party control* → *Enable Modbus*,
+  *Comm Mode* `TCP`, *Communication Address* `1`.
+
+The same screens offer RS485 (9600 baud) and, on the ELS-5K, RS232. This
+integration only uses TCP.
 
 !! When modbus enabled, the internal modes will not work any more. Charge, discharge has to be controlled with the battery set power modbus parameter.
 

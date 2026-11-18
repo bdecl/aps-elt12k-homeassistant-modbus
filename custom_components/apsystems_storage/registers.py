@@ -1,7 +1,9 @@
-"""Register map of the APsystems PCS Modbus protocol (ELT-12 / ELS-5K / ELS-11.4).
+"""Register map of the APsystems storage Modbus protocol (ELT-12 / ELS-5K /
+ELS-11.4 / LSA-6 / LSH-6).
 
-Source: "Modbus protocol for PCS" REV1.0 (SunSpec common model 1 + storage
-model 802 layout). Scales are the ones validated on a live ELT-12K, which
+Source: "Modbus protocol for PCS" REV1.0 and "Modbus Protocol" Rev1.1
+(2026-10-27), same point table (SunSpec common model 1 + storage model 802
+layout). Scales are the ones validated on a live ELT-12K, which
 differ from the PDF for WHRtg (the device returns kWh directly).
 
 This module has no Home Assistant dependency so it can be unit-tested alone.
@@ -261,6 +263,20 @@ def active_bits(value: int | None, names: dict[int, str]) -> list[str]:
 
 GENERIC_MODELS = {"model", "unknown", "n/a", "none", "-"}
 
+# Serial prefix -> (model, phase count), from the "Check support" table of the
+# APsystems Modbus protocol Rev1.1 (2026-10-27). The longest prefixes come
+# first: B0501 / B0502 must not be taken for an ELT-12 (B0500).
+SERIAL_PREFIXES: tuple[tuple[str, tuple[str, int]], ...] = (
+    ("B0500", ("ELT-12", 3)),
+    ("B0501", ("LSA-6", 1)),
+    ("B0502", ("LSH-6", 1)),
+    ("B0400", ("ELS-11.4", 1)),
+    # Older or unlisted serials of the same families
+    ("B050", ("ELT-12", 3)),
+    ("B040", ("ELS-11.4", 1)),
+    ("215", ("ELS-5K", 1)),
+)
+
 
 def detect_model(serial: str | None, model: str | None) -> tuple[str, int]:
     """Return (model name, default phase count).
@@ -270,18 +286,13 @@ def detect_model(serial: str | None, model: str | None) -> tuple[str, int]:
     for serials we do not recognise, and never when it is a placeholder.
     """
     model = (model or "").strip()
-    if serial and serial.startswith("B050"):
-        name = "ELT-12"
-    elif serial and serial.startswith("B040"):
-        name = "ELS-11.4"
-    elif serial and serial.startswith("215"):
-        name = "ELS-5K"
-    elif model and model.lower() not in GENERIC_MODELS:
-        name = model
-    else:
-        name = "APsystems storage"
-    phases = 3 if "ELT" in name.upper() else 1
-    return name, phases
+    for prefix, known in SERIAL_PREFIXES:
+        if serial and serial.startswith(prefix):
+            return known
+    if model and model.lower() not in GENERIC_MODELS:
+        # ELT = three-phase; ELS, LSA, LSH = single-phase ("S" for single)
+        return model, 3 if "ELT" in model.upper() else 1
+    return "APsystems storage", 1
 
 
 def entry_title(serial: str, model: str | None) -> str:

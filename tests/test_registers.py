@@ -51,6 +51,10 @@ def test_bits_and_model():
     assert detect_model("B05000000001", None) == ("ELT-12", 3)
     assert detect_model("215000000001", None) == ("ELS-5K", 1)
     assert detect_model("B04000000001", None) == ("ELS-11.4", 1)
+    # Modbus protocol Rev1.1: B0501 / B0502 are single-phase, not ELT-12
+    assert detect_model("B05010000001", None) == ("LSA-6", 1)
+    assert detect_model("B05020000001", "Model") == ("LSH-6", 1)
+    assert detect_model("B05000000001", "LSA-6") == ("ELT-12", 3)
     # the ELT-12 reports the placeholder "Model" in 40020: serial prefix wins
     assert detect_model("B05000001234", "Model") == ("ELT-12", 3)
     assert detect_model("B05000001234", "Something else") == ("ELT-12", 3)
@@ -64,6 +68,7 @@ def test_entry_title_from_serial_prefix():
     assert entry_title("B05000001234", "Model") == "ELT-12 (1234)"
     assert entry_title("B04000000123", None) == "ELS-11.4 (0123)"
     assert entry_title("215000004567", "") == "ELS-5K (4567)"
+    assert entry_title("B05010001234", None) == "LSA-6 (1234)"
     assert entry_title("X99000001234", "Model") == "APsystems storage (1234)"
 
 
